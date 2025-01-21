@@ -1,11 +1,11 @@
 import { useState } from "react";
-import { useParams } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Input } from "@/components/ui/input";
-import { toast } from "@/components/ui/use-toast";
-import { CheckCircle2, Package2, Printer, Barcode } from "lucide-react";
+import { toast } from "@/hooks/use-toast";
+import { ArrowLeft, CheckCircle2, Package2, Printer, Barcode } from "lucide-react";
 
 interface PickingItem {
   id: string;
@@ -57,6 +57,7 @@ const mockItems: PickingItem[] = [
 
 const Picking = () => {
   const { orderId } = useParams();
+  const navigate = useNavigate();
   const [items, setItems] = useState<PickingItem[]>(mockItems);
   const [barcodeInput, setBarcodeInput] = useState("");
   
@@ -88,7 +89,6 @@ const Picking = () => {
   };
 
   const handlePrintLabel = () => {
-    // כאן יהיה הקוד להדפסת התווית
     toast({
       title: "תווית נשלחה להדפסה",
       description: `הזמנה מספר ${orderId}`,
@@ -100,13 +100,29 @@ const Picking = () => {
       title: "משלוח הושלם",
       description: "ההזמנה מוכנה למשלוח",
     });
+    // ניתן להוסיף כאן היגיון נוסף לשמירת סטטוס המשלוח
+    setTimeout(() => navigate('/'), 1500);
+  };
+
+  const handleGoBack = () => {
+    navigate('/');
   };
 
   return (
     <div className="container mx-auto py-8 space-y-8">
       <div className="flex justify-between items-center">
-        <h1 className="text-3xl font-bold">ליקוט הזמנה #{orderId}</h1>
-        <div className="flex items-center space-x-4">
+        <div className="flex items-center gap-4">
+          <Button 
+            variant="outline" 
+            onClick={handleGoBack}
+            className="gap-2"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            חזרה לרשימת ההזמנות
+          </Button>
+          <h1 className="text-3xl font-bold">ליקוט הזמנה #{orderId}</h1>
+        </div>
+        <div className="flex items-center gap-4">
           <Progress value={progress} className="w-[200px]" />
           <span className="text-sm text-gray-500">{Math.round(progress)}% הושלם</span>
         </div>
@@ -121,6 +137,7 @@ const Picking = () => {
             onChange={(e) => setBarcodeInput(e.target.value)}
             placeholder="סרוק ברקוד..."
             className="pr-10"
+            autoFocus
           />
         </div>
         <Button type="submit">סרוק</Button>
