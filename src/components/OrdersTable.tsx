@@ -2,35 +2,40 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Package, Search } from "lucide-react";
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 
 interface Order {
   id: string;
   customer: string;
-  status: "new" | "processing" | "shipped";
+  status: "new" | "processing" | "picking" | "shipped";
   date: string;
   items: number;
 }
 
 const mockOrders: Order[] = [
   { id: "1", customer: "ישראל ישראלי", status: "new", date: "2024-02-20", items: 3 },
-  { id: "2", customer: "חיים כהן", status: "processing", date: "2024-02-19", items: 1 },
+  { id: "2", customer: "חיים כהן", status: "picking", date: "2024-02-19", items: 1 },
   { id: "3", customer: "שרה לוי", status: "shipped", date: "2024-02-18", items: 5 },
 ];
 
 const statusColors = {
   new: "bg-blue-100 text-blue-800",
   processing: "bg-yellow-100 text-yellow-800",
+  picking: "bg-purple-100 text-purple-800",
   shipped: "bg-green-100 text-green-800",
 };
 
 const statusText = {
   new: "חדשה",
   processing: "בטיפול",
+  picking: "בליקוט",
   shipped: "נשלחה",
 };
 
 export function OrdersTable() {
+  const navigate = useNavigate();
   const [searchTerm, setSearchTerm] = useState("");
   const [orders, setOrders] = useState<Order[]>(mockOrders);
 
@@ -38,6 +43,10 @@ export function OrdersTable() {
     order.customer.toLowerCase().includes(searchTerm.toLowerCase()) ||
     order.id.includes(searchTerm)
   );
+
+  const handleStartPicking = (orderId: string) => {
+    navigate(`/picking/${orderId}`);
+  };
 
   return (
     <div className="space-y-4">
@@ -60,6 +69,7 @@ export function OrdersTable() {
               <TableHead className="text-right">סטטוס</TableHead>
               <TableHead className="text-right">תאריך</TableHead>
               <TableHead className="text-right">פריטים</TableHead>
+              <TableHead className="text-right">פעולות</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -75,9 +85,20 @@ export function OrdersTable() {
                 <TableCell>{new Date(order.date).toLocaleDateString("he-IL")}</TableCell>
                 <TableCell>
                   <div className="flex items-center">
-                    <Package className="w-4 h-4 mr-2" />
+                    <Package className="w-4 h-4 ml-2" />
                     {order.items}
                   </div>
+                </TableCell>
+                <TableCell>
+                  {order.status === "new" && (
+                    <Button 
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleStartPicking(order.id)}
+                    >
+                      התחל ליקוט
+                    </Button>
+                  )}
                 </TableCell>
               </TableRow>
             ))}
