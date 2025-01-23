@@ -73,27 +73,29 @@ const Settings = () => {
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="space-y-2">
-                  <ol className="list-decimal list-inside space-y-2 mb-4">
-                    <li>היכנס לפאנל הניהול של Shopify</li>
-                    <li>לך להגדרות (Settings) ובחר ב-Apps and sales channels</li>
-                    <li>לחץ על Develop apps</li>
-                    <li>צור app חדש ע"י לחיצה על Create an app</li>
-                    <li>הגדר את הרשאות הגישה הבאות:
-                      <ul className="list-disc list-inside ml-4">
-                        <li>read_orders</li>
-                        <li>write_orders</li>
-                        <li>read_products</li>
-                      </ul>
-                    </li>
-                  </ol>
-                  <Input placeholder="חנות URL" />
-                  <Input placeholder="Access Token" type="password" />
-                  <Button onClick={() => handleApiConnection("Shopify")}>
-                    התחבר
-                  </Button>
-                  <Button variant="outline" className="mt-2" onClick={() => window.open('https://shopify.dev/docs/apps/auth/admin-app-access-tokens', '_blank')}>
+                  <div className="bg-blue-50 p-4 rounded-lg mb-4">
+                    <p className="text-sm text-blue-800">
+                      על מנת לחבר את החנות שלך, פשוט העתק את כתובת החנות שלך והזן אותה כאן.
+                      אנחנו נדריך אותך בתהליך החיבור צעד אחר צעד.
+                    </p>
+                  </div>
+                  <Input 
+                    placeholder="לדוגמה: my-store.myshopify.com" 
+                    className="mb-4"
+                  />
+                  <Button 
+                    onClick={() => window.open('https://admin.shopify.com/store-login', '_blank')}
+                    variant="outline"
+                    className="w-full mb-2"
+                  >
                     <ExternalLink className="w-4 h-4 ml-2" />
-                    מדריך מפורט
+                    כניסה לפאנל הניהול של Shopify
+                  </Button>
+                  <Button 
+                    onClick={() => handleApiConnection("Shopify")}
+                    className="w-full"
+                  >
+                    התחל תהליך חיבור
                   </Button>
                 </div>
               </CardContent>
@@ -106,26 +108,29 @@ const Settings = () => {
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="space-y-2">
-                  <ol className="list-decimal list-inside space-y-2 mb-4">
-                    <li>היכנס לפאנל הניהול של Wix</li>
-                    <li>לך ל-Dev Tools ובחר ב-API Keys</li>
-                    <li>צור מפתח API חדש</li>
-                    <li>הגדר את ההרשאות הבאות:
-                      <ul className="list-disc list-inside ml-4">
-                        <li>Stores Orders - Read & Write</li>
-                        <li>Stores Products - Read</li>
-                        <li>Stores Inventory - Read</li>
-                      </ul>
-                    </li>
-                  </ol>
-                  <Input placeholder="Site ID" />
-                  <Input placeholder="API Key" type="password" />
-                  <Button onClick={() => handleApiConnection("Wix")}>
-                    התחבר
-                  </Button>
-                  <Button variant="outline" className="mt-2" onClick={() => window.open('https://dev.wix.com/api/rest/getting-started', '_blank')}>
+                  <div className="bg-blue-50 p-4 rounded-lg mb-4">
+                    <p className="text-sm text-blue-800">
+                      הזן את כתובת האתר שלך ב-Wix ואנחנו נעזור לך להשלים את תהליך החיבור.
+                      לא צריך להתעסק עם הגדרות טכניות!
+                    </p>
+                  </div>
+                  <Input 
+                    placeholder="לדוגמה: mysite.wixsite.com/mystore" 
+                    className="mb-4"
+                  />
+                  <Button 
+                    onClick={() => window.open('https://www.wix.com/account/sites', '_blank')}
+                    variant="outline"
+                    className="w-full mb-2"
+                  >
                     <ExternalLink className="w-4 h-4 ml-2" />
-                    מדריך מפורט
+                    כניסה לפאנל הניהול של Wix
+                  </Button>
+                  <Button 
+                    onClick={() => handleApiConnection("Wix")}
+                    className="w-full"
+                  >
+                    התחל תהליך חיבור
                   </Button>
                 </div>
               </CardContent>
