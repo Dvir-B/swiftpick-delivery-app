@@ -1,11 +1,10 @@
 import { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Progress } from "@/components/ui/progress";
-import { Input } from "@/components/ui/input";
 import { toast } from "@/hooks/use-toast";
-import { ArrowLeft, CheckCircle2, Package2, Printer, Barcode } from "lucide-react";
+import { PickingHeader } from "@/components/picking/PickingHeader";
+import { BarcodeScanner } from "@/components/picking/BarcodeScanner";
+import { PickingItemCard } from "@/components/picking/PickingItem";
+import { PickingActions } from "@/components/picking/PickingActions";
 
 interface PickingItem {
   id: string;
@@ -100,7 +99,6 @@ const Picking = () => {
       title: "משלוח הושלם",
       description: "ההזמנה מוכנה למשלוח",
     });
-    // ניתן להוסיף כאן היגיון נוסף לשמירת סטטוס המשלוח
     setTimeout(() => navigate('/'), 1500);
   };
 
@@ -110,92 +108,33 @@ const Picking = () => {
 
   return (
     <div className="container mx-auto py-8 space-y-8">
-      <div className="flex justify-between items-center">
-        <div className="flex items-center gap-4">
-          <Button 
-            variant="outline" 
-            onClick={handleGoBack}
-            className="gap-2"
-          >
-            <ArrowLeft className="h-4 w-4" />
-            חזרה לרשימת ההזמנות
-          </Button>
-          <h1 className="text-3xl font-bold">ליקוט הזמנה #{orderId}</h1>
-        </div>
-        <div className="flex items-center gap-4">
-          <Progress value={progress} className="w-[200px]" />
-          <span className="text-sm text-gray-500">{Math.round(progress)}% הושלם</span>
-        </div>
-      </div>
-
-      <form onSubmit={handleBarcodeSubmit} className="flex gap-4 items-center">
-        <div className="relative flex-1">
-          <Barcode className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500" />
-          <Input
-            type="text"
-            value={barcodeInput}
-            onChange={(e) => setBarcodeInput(e.target.value)}
-            placeholder="סרוק ברקוד..."
-            className="pr-10"
-            autoFocus
-          />
-        </div>
-        <Button type="submit">סרוק</Button>
-      </form>
-
+      <PickingHeader 
+        orderId={orderId || ""} 
+        progress={progress}
+        onGoBack={handleGoBack}
+      />
+      
+      <BarcodeScanner
+        value={barcodeInput}
+        onChange={setBarcodeInput}
+        onSubmit={handleBarcodeSubmit}
+      />
+      
       <div className="grid gap-4">
         {items.map((item) => (
-          <Card key={item.id} className={item.picked ? "bg-gray-50" : ""}>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <div className="space-y-1">
-                <CardTitle className="text-lg font-medium">{item.name}</CardTitle>
-                <div className="text-sm text-gray-500">
-                  <span>מק"ט: {item.sku}</span>
-                  {item.size && <span className="mx-2">| מידה: {item.size}</span>}
-                  {item.color && <span className="mx-2">| צבע: {item.color}</span>}
-                </div>
-              </div>
-              <div className="flex items-center space-x-2">
-                <Package2 className="h-4 w-4 text-gray-500 ml-2" />
-                <span className="text-sm text-gray-500">מיקום: {item.location}</span>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="flex justify-between items-center">
-                <div className="space-y-1">
-                  <p className="text-sm text-gray-500">כמות: {item.quantity}</p>
-                  <p className="text-sm text-gray-500">ברקוד: {item.barcode}</p>
-                </div>
-                {item.picked ? (
-                  <div className="flex items-center text-green-600">
-                    <CheckCircle2 className="h-5 w-5 ml-2" />
-                    <span>נלקט</span>
-                  </div>
-                ) : (
-                  <Button onClick={() => handlePickItem(item.id)}>סמן כנלקט</Button>
-                )}
-              </div>
-            </CardContent>
-          </Card>
+          <PickingItemCard
+            key={item.id}
+            {...item}
+            onPick={handlePickItem}
+          />
         ))}
       </div>
 
       {progress === 100 && (
-        <div className="flex justify-center gap-4">
-          <Button 
-            onClick={handlePrintLabel}
-            className="bg-blue-600 hover:bg-blue-700"
-          >
-            <Printer className="ml-2 h-4 w-4" />
-            הדפס תווית
-          </Button>
-          <Button 
-            onClick={handleCompleteShipment}
-            className="bg-green-600 hover:bg-green-700"
-          >
-            סיים משלוח
-          </Button>
-        </div>
+        <PickingActions
+          onPrint={handlePrintLabel}
+          onComplete={handleCompleteShipment}
+        />
       )}
     </div>
   );
