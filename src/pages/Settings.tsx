@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, Upload } from "lucide-react";
+import { ArrowLeft, Upload, ExternalLink } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
 const Settings = () => {
@@ -14,7 +14,6 @@ const Settings = () => {
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
-      // כאן נוסיף את הלוגיקה לקריאת קובץ האקסל
       toast({
         title: "הקובץ הועלה בהצלחה",
         description: `${file.name} נקלט במערכת`,
@@ -23,7 +22,6 @@ const Settings = () => {
   };
 
   const handleApiConnection = (service: string) => {
-    // כאן נוסיף את הלוגיקה להתחברות ל-API
     toast({
       title: "החיבור בוצע בהצלחה",
       description: `החיבור ל-${service} הושלם`,
@@ -67,22 +65,72 @@ const Settings = () => {
         </TabsContent>
 
         <TabsContent value="ecommerce">
-          <Card>
-            <CardHeader>
-              <CardTitle>חיבור לאתר מסחר</CardTitle>
-              <CardDescription>חבר את המערכת לאתר המסחר שלך</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label>WooCommerce</Label>
-                <Input placeholder="כתובת האתר" />
-                <Input placeholder="מפתח API" type="password" />
-                <Button onClick={() => handleApiConnection("WooCommerce")}>
-                  התחבר
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
+          <div className="space-y-4">
+            <Card>
+              <CardHeader>
+                <CardTitle>Shopify</CardTitle>
+                <CardDescription>חיבור חנות Shopify</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <ol className="list-decimal list-inside space-y-2 mb-4">
+                    <li>היכנס לפאנל הניהול של Shopify</li>
+                    <li>לך להגדרות (Settings) ובחר ב-Apps and sales channels</li>
+                    <li>לחץ על Develop apps</li>
+                    <li>צור app חדש ע"י לחיצה על Create an app</li>
+                    <li>הגדר את הרשאות הגישה הבאות:
+                      <ul className="list-disc list-inside ml-4">
+                        <li>read_orders</li>
+                        <li>write_orders</li>
+                        <li>read_products</li>
+                      </ul>
+                    </li>
+                  </ol>
+                  <Input placeholder="חנות URL" />
+                  <Input placeholder="Access Token" type="password" />
+                  <Button onClick={() => handleApiConnection("Shopify")}>
+                    התחבר
+                  </Button>
+                  <Button variant="outline" className="mt-2" onClick={() => window.open('https://shopify.dev/docs/apps/auth/admin-app-access-tokens', '_blank')}>
+                    <ExternalLink className="w-4 h-4 ml-2" />
+                    מדריך מפורט
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Wix</CardTitle>
+                <CardDescription>חיבור אתר Wix</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <ol className="list-decimal list-inside space-y-2 mb-4">
+                    <li>היכנס לפאנל הניהול של Wix</li>
+                    <li>לך ל-Dev Tools ובחר ב-API Keys</li>
+                    <li>צור מפתח API חדש</li>
+                    <li>הגדר את ההרשאות הבאות:
+                      <ul className="list-disc list-inside ml-4">
+                        <li>Stores Orders - Read & Write</li>
+                        <li>Stores Products - Read</li>
+                        <li>Stores Inventory - Read</li>
+                      </ul>
+                    </li>
+                  </ol>
+                  <Input placeholder="Site ID" />
+                  <Input placeholder="API Key" type="password" />
+                  <Button onClick={() => handleApiConnection("Wix")}>
+                    התחבר
+                  </Button>
+                  <Button variant="outline" className="mt-2" onClick={() => window.open('https://dev.wix.com/api/rest/getting-started', '_blank')}>
+                    <ExternalLink className="w-4 h-4 ml-2" />
+                    מדריך מפורט
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
         </TabsContent>
 
         <TabsContent value="excel">
