@@ -1,15 +1,23 @@
+
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, Upload, ExternalLink } from "lucide-react";
+import { ArrowLeft, Upload, ExternalLink, Truck, Package } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { useState } from "react";
 
 const Settings = () => {
   const { toast } = useToast();
   const navigate = useNavigate();
+  const [hfdSettings, setHfdSettings] = useState({
+    clientNumber: "",
+    token: "",
+    shipmentTypeCode: "",
+    cargoTypeHaloch: "",
+  });
 
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -25,6 +33,22 @@ const Settings = () => {
     toast({
       title: "החיבור בוצע בהצלחה",
       description: `החיבור ל-${service} הושלם`,
+    });
+  };
+
+  const handleHfdSettingsChange = (field: string, value: string) => {
+    setHfdSettings(prev => ({
+      ...prev,
+      [field]: value
+    }));
+  };
+
+  const handleSaveHfdSettings = () => {
+    // כאן ניתן להוסיף בדיקות תקינות לשדות
+    localStorage.setItem('hfd_settings', JSON.stringify(hfdSettings));
+    toast({
+      title: "הגדרות HFD נשמרו בהצלחה",
+      description: "הגדרות חברת HFD נשמרו במערכת",
     });
   };
 
@@ -46,22 +70,89 @@ const Settings = () => {
         </TabsList>
 
         <TabsContent value="shipping">
-          <Card>
-            <CardHeader>
-              <CardTitle>הגדרות חברות משלוחים</CardTitle>
-              <CardDescription>חבר את המערכת לחברות המשלוחים שלך</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label>חברת שליחויות</Label>
-                <Input placeholder="מזהה API" />
-                <Input placeholder="מפתח API" type="password" />
-                <Button onClick={() => handleApiConnection("חברת שליחויות")}>
-                  התחבר
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
+          <div className="space-y-4">
+            <Card>
+              <CardHeader>
+                <CardTitle>חברת HFD</CardTitle>
+                <CardDescription>הגדרות חיבור לחברת המשלוחים HFD</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="bg-blue-50 p-4 rounded-lg mb-4">
+                  <p className="text-sm text-blue-800">
+                    לחיבור מערכת ה-ERP של HFD, אנא הזן את הפרטים הבאים. 
+                    אם אין לך את הפרטים, פנה לחברת HFD לקבלת מספר לקוח וטוקן גישה.
+                  </p>
+                </div>
+                <div className="space-y-2">
+                  <Label>מספר לקוח (Client Number)</Label>
+                  <Input 
+                    placeholder="לדוגמה: 3399" 
+                    value={hfdSettings.clientNumber}
+                    onChange={(e) => handleHfdSettingsChange('clientNumber', e.target.value)}
+                  />
+                  
+                  <Label>טוקן גישה (API Token)</Label>
+                  <Input 
+                    placeholder="הזן את הטוקן שקיבלת מחברת HFD" 
+                    type="password"
+                    value={hfdSettings.token}
+                    onChange={(e) => handleHfdSettingsChange('token', e.target.value)}
+                  />
+                  
+                  <Label>קוד סוג משלוח (Shipment Type Code)</Label>
+                  <Input 
+                    placeholder="לדוגמה: 35" 
+                    value={hfdSettings.shipmentTypeCode}
+                    onChange={(e) => handleHfdSettingsChange('shipmentTypeCode', e.target.value)}
+                  />
+                  
+                  <Label>קוד סוג מטען (Cargo Type Haloch)</Label>
+                  <Input 
+                    placeholder="לדוגמה: 10" 
+                    value={hfdSettings.cargoTypeHaloch}
+                    onChange={(e) => handleHfdSettingsChange('cargoTypeHaloch', e.target.value)}
+                  />
+                  
+                  <div className="pt-4 flex items-center justify-between">
+                    <Button 
+                      onClick={handleSaveHfdSettings}
+                      className="flex items-center"
+                    >
+                      <Truck className="mr-2 h-4 w-4" />
+                      שמור הגדרות HFD
+                    </Button>
+                    
+                    <Button 
+                      variant="outline"
+                      onClick={() => window.open('https://test.hfd.co.il', '_blank')}
+                      className="flex items-center"
+                    >
+                      <ExternalLink className="mr-2 h-4 w-4" />
+                      בדיקת חיבור (Sandbox)
+                    </Button>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+            
+            <Card>
+              <CardHeader>
+                <CardTitle>חברות משלוחים נוספות</CardTitle>
+                <CardDescription>חבר את המערכת לחברות המשלוחים שלך</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <Label>חברת שליחויות כללית</Label>
+                  <Input placeholder="מזהה API" />
+                  <Input placeholder="מפתח API" type="password" />
+                  <Button onClick={() => handleApiConnection("חברת שליחויות")}>
+                    <Package className="mr-2 h-4 w-4" />
+                    התחבר
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
         </TabsContent>
 
         <TabsContent value="ecommerce">
