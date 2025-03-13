@@ -1,23 +1,49 @@
-
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, Upload, ExternalLink, Truck, Package } from "lucide-react";
+import { ArrowLeft, Upload, ExternalLink, Truck, Package, Check } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { WixCredentials, startWixIntegration, testWixConnection } from "@/utils/wixIntegration";
+import { HfdSettings, testHfdConnection, createHfdShipment } from "@/utils/hfdIntegration";
+import WixOrdersList from "@/components/WixOrdersList";
 
 const Settings = () => {
   const { toast } = useToast();
   const navigate = useNavigate();
-  const [hfdSettings, setHfdSettings] = useState({
+  const [hfdSettings, setHfdSettings] = useState<HfdSettings>({
     clientNumber: "",
     token: "",
     shipmentTypeCode: "",
     cargoTypeHaloch: "",
   });
+
+  const [wixSettings, setWixSettings] = useState<WixCredentials>({
+    siteUrl: "",
+    apiKey: "",
+    refreshToken: "",
+    isConnected: false
+  });
+
+  const [isTestingHfd, setIsTestingHfd] = useState(false);
+  const [isStartingWixIntegration, setIsStartingWixIntegration] = useState(false);
+  const [isTestingWix, setIsTestingWix] = useState(false);
+
+  // Load saved settings on component mount
+  useEffect(() => {
+    const savedHfdSettings = localStorage.getItem('hfd_settings');
+    if (savedHfdSettings) {
+      setHfdSettings(JSON.parse(savedHfdSettings));
+    }
+    
+    const savedWixSettings = localStorage.getItem('wix_settings');
+    if (savedWixSettings) {
+      setWixSettings(JSON.parse(savedWixSettings));
+    }
+  }, []);
 
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -50,6 +76,90 @@ const Settings = () => {
       title: "הגדרות HFD נשמרו בהצלחה",
       description: "הגדרות חברת HFD נשמרו במערכת",
     });
+  };
+
+  const handleTestHfdConnection = async () => {
+    setIsTestingHfd(true);
+    try {
+      const result = await testHfdConnection(hfdSettings);
+      toast({
+        title: result.success ? "בדיקת חיבור הצליחה" : "בדיקת חיבור נכשלה",
+        description: result.message,
+        variant: result.success ? "default" : "destructive",
+      });
+    } catch (error) {
+      toast({
+        title: "שגיאה בבדיקת החיבור",
+        description: error instanceof Error ? error.message : "שגיאה לא ידועה",
+        variant: "destructive",
+      });
+    } finally {
+      setIsTestingHfd(false);
+    }
+  };
+
+  const handleWixUrlChange = (value: string) => {
+    setWixSettings(prev => ({
+      ...prev,
+      siteUrl: value
+    }));
+  };
+
+  const handleStartWixIntegration = async () => {
+    setIsStartingWixIntegration(true);
+    try {
+      const credentials = await startWixIntegration(wixSettings.siteUrl);
+      setWixSettings(credentials);
+      localStorage.setItem('wix_settings', JSON.stringify(credentials));
+      toast({
+        title: "חיבור Wix הצליח",
+        description: "החיבור לחנות Wix הושלם בהצלחה",
+      });
+    } catch (error) {
+      toast({
+        title: "שגיאה בתהליך החיבור",
+        description: error instanceof Error ? error.message : "שגיאה לא ידועה",
+        variant: "destructive",
+      });
+    } finally {
+      setIsStartingWixIntegration(false);
+    }
+  };
+
+  const handleTestWixConnection = async () => {
+    setIsTestingWix(true);
+    try {
+      const result = await testWixConnection(wixSettings);
+      toast({
+        title: result.success ? "בדיקת חיבור Wix הצליחה" : "בדיקת חיבור Wix נכשלה",
+        description: result.message,
+        variant: result.success ? "default" : "destructive",
+      });
+    } catch (error) {
+      toast({
+        title: "שגיאה בבדיקת החיבור",
+        description: error instanceof Error ? error.message : "שגיאה לא ידועה",
+        variant: "destructive",
+      });
+    } finally {
+      setIsTestingWix(false);
+    }
+  };
+
+  const handleCreateShipment = async (shipmentData: any) => {
+    try {
+      const response = await createHfdShipment(shipmentData, hfdSettings);
+      toast({
+        title: "משלוח נוצר בהצלחה",
+        description: `מספר משלוח: ${response.shipmentNumber}`,
+      });
+    } catch (error) {
+      toast({
+        title: "שגיאה ביצירת משלוח",
+        description: error instanceof Error ? error.message : "שגיאה לא ידועה",
+        variant: "destructive",
+      });
+    }
   };
 
   return (
@@ -124,11 +234,18 @@ const Settings = () => {
                     
                     <Button 
                       variant="outline"
-                      onClick={() => window.open('https://test.hfd.co.il', '_blank')}
+                      onClick={handleTestHfdConnection}
+                      disabled={isTestingHfd || !hfdSettings.clientNumber || !hfdSettings.token}
                       className="flex items-center"
                     >
-                      <ExternalLink className="mr-2 h-4 w-4" />
-                      בדיקת חיבור (Sandbox)
+                      {isTestingHfd ? (
+                        <>טוען...</>
+                      ) : (
+                        <>
+                          <Check className="mr-2 h-4 w-4" />
+                          בדיקת חיבור
+                        </>
+                      )}
                     </Button>
                   </div>
                 </div>
@@ -159,6 +276,78 @@ const Settings = () => {
           <div className="space-y-4">
             <Card>
               <CardHeader>
+                <CardTitle>Wix</CardTitle>
+                <CardDescription>חיבור אתר Wix</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <div className="bg-blue-50 p-4 rounded-lg mb-4">
+                    <p className="text-sm text-blue-800">
+                      הזן את כתובת האתר שלך ב-Wix ואנחנו נעזור לך להשלים את תהליך החיבור.
+                      המערכת תוכל למשוך הזמנות באופן אוטומטי מהחנות שלך.
+                    </p>
+                  </div>
+                  <Input 
+                    placeholder="לדוגמה: mysite.wixsite.com/mystore" 
+                    className="mb-4"
+                    value={wixSettings.siteUrl}
+                    onChange={(e) => handleWixUrlChange(e.target.value)}
+                    disabled={wixSettings.isConnected}
+                  />
+                  
+                  {wixSettings.isConnected ? (
+                    <div className="bg-green-50 p-4 rounded-lg mb-4 flex items-center">
+                      <Check className="h-5 w-5 text-green-600 mr-2" />
+                      <p className="text-sm text-green-800">
+                        החנות מחוברת בהצלחה! ניתן לטעון הזמנות ולהפוך אותן למשלוחים.
+                      </p>
+                    </div>
+                  ) : (
+                    <>
+                      <Button 
+                        onClick={() => window.open('https://www.wix.com/account/sites', '_blank')}
+                        variant="outline"
+                        className="w-full mb-2"
+                      >
+                        <ExternalLink className="w-4 h-4 ml-2" />
+                        כניסה לפאנל הניהול של Wix
+                      </Button>
+                      <Button 
+                        onClick={handleStartWixIntegration}
+                        disabled={isStartingWixIntegration || !wixSettings.siteUrl}
+                        className="w-full"
+                      >
+                        {isStartingWixIntegration ? "מתחבר..." : "התחל תהליך חיבור"}
+                      </Button>
+                    </>
+                  )}
+                  
+                  {wixSettings.isConnected && (
+                    <Button 
+                      onClick={handleTestWixConnection}
+                      variant="outline"
+                      disabled={isTestingWix}
+                      className="w-full mt-2"
+                    >
+                      {isTestingWix ? "בודק חיבור..." : "בדוק חיבור"}
+                    </Button>
+                  )}
+                </div>
+
+                {wixSettings.isConnected && (
+                  <div className="mt-8">
+                    <WixOrdersList 
+                      credentials={wixSettings}
+                      hfdSettings={hfdSettings}
+                      onCreateShipment={handleCreateShipment}
+                    />
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
                 <CardTitle>Shopify</CardTitle>
                 <CardDescription>חיבור חנות Shopify</CardDescription>
               </CardHeader>
@@ -184,41 +373,6 @@ const Settings = () => {
                   </Button>
                   <Button 
                     onClick={() => handleApiConnection("Shopify")}
-                    className="w-full"
-                  >
-                    התחל תהליך חיבור
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle>Wix</CardTitle>
-                <CardDescription>חיבור אתר Wix</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-2">
-                  <div className="bg-blue-50 p-4 rounded-lg mb-4">
-                    <p className="text-sm text-blue-800">
-                      הזן את כתובת האתר שלך ב-Wix ואנחנו נעזור לך להשלים את תהליך החיבור.
-                      לא צריך להתעסק עם הגדרות טכניות!
-                    </p>
-                  </div>
-                  <Input 
-                    placeholder="לדוגמה: mysite.wixsite.com/mystore" 
-                    className="mb-4"
-                  />
-                  <Button 
-                    onClick={() => window.open('https://www.wix.com/account/sites', '_blank')}
-                    variant="outline"
-                    className="w-full mb-2"
-                  >
-                    <ExternalLink className="w-4 h-4 ml-2" />
-                    כניסה לפאנל הניהול של Wix
-                  </Button>
-                  <Button 
-                    onClick={() => handleApiConnection("Wix")}
                     className="w-full"
                   >
                     התחל תהליך חיבור
