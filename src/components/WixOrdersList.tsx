@@ -56,6 +56,14 @@ const WixOrdersList = ({ credentials, hfdSettings, onCreateShipment }: WixOrders
     }
   };
 
+  if (!credentials.isConnected) {
+    return (
+      <div className="text-center py-8 text-gray-500">
+        <p>יש להתקין את האפליקציה בחנות Wix שלך ולהשלים את תהליך החיבור</p>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-center">
@@ -72,7 +80,7 @@ const WixOrdersList = ({ credentials, hfdSettings, onCreateShipment }: WixOrders
 
       {orders.length === 0 ? (
         <div className="text-center py-8 text-gray-500">
-          {credentials.isConnected ? "לחץ על 'טען הזמנות' כדי להציג הזמנות מחנות Wix שלך" : "התחבר לחנות Wix שלך כדי לראות הזמנות"}
+          <p>לחץ על 'טען הזמנות' כדי להציג הזמנות מחנות Wix שלך</p>
         </div>
       ) : (
         <div className="space-y-4">

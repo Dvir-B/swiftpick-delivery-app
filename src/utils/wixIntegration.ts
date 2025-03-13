@@ -1,4 +1,3 @@
-
 import { useToast } from "@/hooks/use-toast";
 
 // Wix API endpoints
@@ -9,6 +8,7 @@ export interface WixCredentials {
   apiKey: string;
   refreshToken: string;
   isConnected: boolean;
+  appId?: string;
 }
 
 export interface WixOrder {
@@ -167,16 +167,30 @@ export const convertWixOrderToHfdShipment = (order: WixOrder, hfdSettings: any) 
 };
 
 /**
+ * Get Wix App installation URL
+ */
+export const getWixAppInstallUrl = (appId: string, redirectUrl: string): string => {
+  // In a real implementation, this would be the URL to install your Wix app
+  const baseUrl = "https://www.wix.com/installer/install";
+  return `${baseUrl}?appId=${appId}&redirectUrl=${encodeURIComponent(redirectUrl)}`;
+};
+
+/**
  * Start the Wix integration process
  */
 export const startWixIntegration = async (siteUrl: string) => {
   if (!siteUrl) {
-    throw new Error("Please enter your Wix site URL");
+    throw new Error("אנא הזן את כתובת האתר שלך ב-Wix");
   }
   
-  // This would typically redirect to Wix OAuth flow
   // For demo purposes, we'll just simulate a successful connection
   console.log("Starting Wix integration for site:", siteUrl);
+  
+  // In a real implementation, the flow would be:
+  // 1. Redirect to Wix app installation page
+  // 2. User installs the app in their Wix account
+  // 3. Wix redirects back to our app with an authorization code
+  // 4. We exchange the authorization code for an access token and refresh token
   
   // Simulate OAuth flow delay
   await new Promise(resolve => setTimeout(resolve, 1500));
@@ -184,9 +198,10 @@ export const startWixIntegration = async (siteUrl: string) => {
   // Return mock credentials
   return {
     siteUrl,
+    appId: "wix_app_" + Math.random().toString(36).substring(2, 10),
     apiKey: "wix_mock_api_key_" + Math.random().toString(36).substring(2, 10),
     refreshToken: "wix_mock_refresh_token_" + Math.random().toString(36).substring(2, 10),
-    isConnected: true
+    isConnected: false // Initially false until app is installed
   };
 };
 
@@ -208,4 +223,23 @@ export const testWixConnection = async (credentials: WixCredentials) => {
       ordersCount: 0
     };
   }
+};
+
+/**
+ * Complete the Wix integration process (after app installation)
+ */
+export const completeWixIntegration = async (credentials: WixCredentials, authCode: string) => {
+  // In a real implementation, this would exchange the auth code for tokens
+  console.log("Completing Wix integration with auth code:", authCode);
+  
+  // Simulate API call
+  await new Promise(resolve => setTimeout(resolve, 1000));
+  
+  // Return updated credentials with isConnected=true
+  return {
+    ...credentials,
+    isConnected: true,
+    apiKey: "wix_api_key_" + Math.random().toString(36).substring(2, 10),
+    refreshToken: "wix_refresh_token_" + Math.random().toString(36).substring(2, 10),
+  };
 };

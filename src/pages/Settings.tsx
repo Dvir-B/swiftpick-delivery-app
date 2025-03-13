@@ -7,7 +7,13 @@ import { useToast } from "@/hooks/use-toast";
 import { ArrowLeft, Upload, ExternalLink, Truck, Package, Check } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useState, useEffect } from "react";
-import { WixCredentials, startWixIntegration, testWixConnection } from "@/utils/wixIntegration";
+import { 
+  WixCredentials, 
+  startWixIntegration, 
+  testWixConnection, 
+  getWixAppInstallUrl,
+  completeWixIntegration
+} from "@/utils/wixIntegration";
 import { HfdSettings, testHfdConnection, createHfdShipment } from "@/utils/hfdIntegration";
 import WixOrdersList from "@/components/WixOrdersList";
 
@@ -31,6 +37,8 @@ const Settings = () => {
   const [isTestingHfd, setIsTestingHfd] = useState(false);
   const [isStartingWixIntegration, setIsStartingWixIntegration] = useState(false);
   const [isTestingWix, setIsTestingWix] = useState(false);
+  const [wixAuthCode, setWixAuthCode] = useState("");
+  const [isCompletingWixIntegration, setIsCompletingWixIntegration] = useState(false);
 
   // Load saved settings on component mount
   useEffect(() => {
@@ -44,6 +52,18 @@ const Settings = () => {
       setWixSettings(JSON.parse(savedWixSettings));
     }
   }, []);
+
+  // Check for auth code in URL for Wix app installation callback
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const authCode = urlParams.get('code');
+    
+    if (authCode && wixSettings.appId && !wixSettings.isConnected) {
+      setWixAuthCode(authCode);
+      // Clear URL parameters without refreshing the page
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
+  }, [wixSettings]);
 
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -112,18 +132,57 @@ const Settings = () => {
       setWixSettings(credentials);
       localStorage.setItem('wix_settings', JSON.stringify(credentials));
       toast({
-        title: "חיבור Wix הצליח",
-        description: "החיבור לחנות Wix הושלם בהצלחה",
+        title: "תהליך אינטגרציה התחיל",
+        description: "כעת יש להתקין את האפליקציה בחנות Wix שלך",
       });
     } catch (error) {
       toast({
-        title: "שגיאה בתהליך החיבור",
+        title: "שגיאה בתהליך האינטגרציה",
         description: error instanceof Error ? error.message : "שגיאה לא ידועה",
         variant: "destructive",
       });
     } finally {
       setIsStartingWixIntegration(false);
     }
+  };
+
+  const handleCompleteWixIntegration = async () => {
+    if (!wixAuthCode) {
+      toast({
+        title: "שגיאה בהשלמת החיבור",
+        description: "קוד אימות חסר, נסה להתקין את האפליקציה שוב",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsCompletingWixIntegration(true);
+    try {
+      const updatedCredentials = await completeWixIntegration(wixSettings, wixAuthCode);
+      setWixSettings(updatedCredentials);
+      localStorage.setItem('wix_settings', JSON.stringify(updatedCredentials));
+      toast({
+        title: "חיבור Wix הושלם בהצלחה",
+        description: "אפליקציית Wix מחוברת כעת למערכת",
+      });
+      setWixAuthCode("");
+    } catch (error) {
+      toast({
+        title: "שגיאה בהשלמת החיבור",
+        description: error instanceof Error ? error.message : "שגיאה לא ידועה",
+        variant: "destructive",
+      });
+    } finally {
+      setIsCompletingWixIntegration(false);
+    }
+  };
+
+  const openWixAppInstall = () => {
+    if (!wixSettings.appId) return;
+    
+    const redirectUrl = `${window.location.origin}${window.location.pathname}`;
+    const installUrl = getWixAppInstallUrl(wixSettings.appId, redirectUrl);
+    window.open(installUrl, '_blank');
   };
 
   const handleTestWixConnection = async () => {
@@ -283,26 +342,22 @@ const Settings = () => {
                 <div className="space-y-2">
                   <div className="bg-blue-50 p-4 rounded-lg mb-4">
                     <p className="text-sm text-blue-800">
-                      הזן את כתובת האתר שלך ב-Wix ואנחנו נעזור לך להשלים את תהליך החיבור.
-                      המערכת תוכל למשוך הזמנות באופן אוטומטי מהחנות שלך.
+                      לחיבור מערכת זו לחנות Wix שלך, יש לעבור שלושה שלבים:
+                      <br />1. הזן את כתובת האתר שלך
+                      <br />2. התקן את האפליקציה בחנות Wix שלך
+                      <br />3. השלם את תהליך ההרשאה
                     </p>
                   </div>
+                  
                   <Input 
                     placeholder="לדוגמה: mysite.wixsite.com/mystore" 
                     className="mb-4"
                     value={wixSettings.siteUrl}
                     onChange={(e) => handleWixUrlChange(e.target.value)}
-                    disabled={wixSettings.isConnected}
+                    disabled={!!wixSettings.appId}
                   />
                   
-                  {wixSettings.isConnected ? (
-                    <div className="bg-green-50 p-4 rounded-lg mb-4 flex items-center">
-                      <Check className="h-5 w-5 text-green-600 mr-2" />
-                      <p className="text-sm text-green-800">
-                        החנות מחוברת בהצלחה! ניתן לטעון הזמנות ולהפוך אותן למשלוחים.
-                      </p>
-                    </div>
-                  ) : (
+                  {!wixSettings.appId ? (
                     <>
                       <Button 
                         onClick={() => window.open('https://www.wix.com/account/sites', '_blank')}
@@ -317,9 +372,44 @@ const Settings = () => {
                         disabled={isStartingWixIntegration || !wixSettings.siteUrl}
                         className="w-full"
                       >
-                        {isStartingWixIntegration ? "מתחבר..." : "התחל תהליך חיבור"}
+                        {isStartingWixIntegration ? "מתחיל תהליך..." : "התחל תהליך חיבור"}
                       </Button>
                     </>
+                  ) : wixSettings.isConnected ? (
+                    <div className="bg-green-50 p-4 rounded-lg mb-4 flex items-center">
+                      <Check className="h-5 w-5 text-green-600 mr-2" />
+                      <p className="text-sm text-green-800">
+                        החנות מחוברת בהצלחה! ניתן לטעון הזמנות ולהפוך אותן למשלוחים.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      <div className={`bg-${wixAuthCode ? "yellow" : "blue"}-50 p-4 rounded-lg mb-4`}>
+                        <p className="text-sm text-blue-800">
+                          {wixAuthCode 
+                            ? "קוד אימות התקבל! לחץ על הכפתור למטה להשלמת תהליך החיבור."
+                            : "כעת יש להתקין את האפליקציה בחנות Wix שלך. לחץ על הכפתור למטה כדי לפתוח את דף ההתקנה."
+                          }
+                        </p>
+                      </div>
+                      
+                      {wixAuthCode ? (
+                        <Button 
+                          onClick={handleCompleteWixIntegration}
+                          disabled={isCompletingWixIntegration}
+                          className="w-full"
+                        >
+                          {isCompletingWixIntegration ? "משלים חיבור..." : "השלם את תהליך החיבור"}
+                        </Button>
+                      ) : (
+                        <Button 
+                          onClick={openWixAppInstall}
+                          className="w-full"
+                        >
+                          התקן את האפליקציה בחנות Wix שלך
+                        </Button>
+                      )}
+                    </div>
                   )}
                   
                   {wixSettings.isConnected && (
@@ -327,7 +417,7 @@ const Settings = () => {
                       onClick={handleTestWixConnection}
                       variant="outline"
                       disabled={isTestingWix}
-                      className="w-full mt-2"
+                      className="w-full mt-4"
                     >
                       {isTestingWix ? "בודק חיבור..." : "בדוק חיבור"}
                     </Button>
