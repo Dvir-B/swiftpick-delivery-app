@@ -1,3 +1,4 @@
+
 import type { Config } from "tailwindcss";
 
 export default {
@@ -54,7 +55,7 @@ export default {
         },
       },
       fontFamily: {
-        sans: ["Inter", "sans-serif"],
+        sans: ["Rubik", "sans-serif"],
         heading: ["Rubik", "sans-serif"],
       },
       borderRadius: {
