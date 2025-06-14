@@ -176,11 +176,13 @@ const Settings = () => {
     setIsTestingWix(true);
     try {
       const result = await testWixConnection({
-        siteUrl: wixSettings.site_url,
-        apiKey: wixSettings.api_key || '',
-        refreshToken: wixSettings.refresh_token || '',
-        isConnected: wixSettings.is_connected,
-        appId: wixSettings.app_id
+        site_url: wixSettings.site_url,
+        api_key: wixSettings.api_key || '',
+        refresh_token: wixSettings.refresh_token || '',
+        is_connected: wixSettings.is_connected,
+        app_id: wixSettings.app_id || '',
+        user_id: wixSettings.user_id,
+        access_token: wixSettings.access_token || ''
       });
       
       toast({
@@ -289,7 +291,7 @@ const Settings = () => {
               onTestConnection={handleTestWixConnection}
               onCreateShipment={handleCreateShipment}
             />
-            <ShopifySettings />
+            <ShopifySettings onApiConnection={() => {}} />
           </div>
         </TabsContent>
 
@@ -310,7 +312,7 @@ const Settings = () => {
             <CardHeader>
               <CardTitle>הוראות לקובץ CSV</CardTitle>
               <CardDescription>
-                הקובץ צריך להכיל את העמודות הבאות (שמות העמודות חייבים להיות באנגלית)
+                הקובץ צריך להכיל את העמודות הבאות (שמות העמודות יכולים להיות באנגלית או בעברית)
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -319,25 +321,25 @@ const Settings = () => {
                   <div>
                     <strong>עמודות חובה:</strong>
                     <ul className="list-disc list-inside mt-1 space-y-1">
-                      <li>order_number - מספר הזמנה</li>
+                      <li>Order number - מספר הזמנה</li>
                     </ul>
                   </div>
                   <div>
                     <strong>עמודות אופציונליות:</strong>
                     <ul className="list-disc list-inside mt-1 space-y-1">
-                      <li>customer_name - שם לקוח</li>
-                      <li>customer_email - אימייל לקוח</li>
-                      <li>customer_phone - טלפון לקוח</li>
-                      <li>total_amount - סכום הזמנה</li>
-                      <li>weight - משקל</li>
-                      <li>platform - פלטפורמה (manual/wix/shopify)</li>
-                      <li>order_date - תאריך הזמנה</li>
+                      <li>Contact email - אימייל לקוח</li>
+                      <li>Recipient name - שם הלקוח</li>
+                      <li>Recipient phone - טלפון לקוח</li>
+                      <li>Total - סכום הזמנה</li>
+                      <li>Date created - תאריך הזמנה</li>
+                      <li>Delivery address - כתובת משלוח</li>
+                      <li>Currency - מטבע</li>
                     </ul>
                   </div>
                 </div>
                 <div className="mt-4 p-3 bg-blue-50 rounded-lg">
                   <p className="text-blue-800">
-                    <strong>טיפ:</strong> ניתן להוריד דוגמה של קובץ CSV תקין מהמערכת כדי לראות את המבנה הנדרש.
+                    <strong>טיפ:</strong> המערכת תזהה אוטומטית את העמודות הרלוונטיות מהקובץ שלך ותמפה אותן לשדות הנכונים.
                   </p>
                 </div>
               </div>

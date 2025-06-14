@@ -1,4 +1,3 @@
-
 import Papa from 'papaparse';
 import { saveOrder } from './database';
 import { Order } from '@/lib/supabase';
@@ -15,6 +14,32 @@ export interface OrderImportData {
   order_date?: string;
   shipping_address?: any;
 }
+
+// Column mapping for the specific CSV format provided
+const COLUMN_MAPPING: Record<string, string> = {
+  'Order number': 'order_number',
+  'Date created': 'order_date',
+  'Contact email': 'customer_email',
+  'Recipient name': 'customer_name',
+  'Recipient phone': 'customer_phone',
+  'Total': 'total_amount',
+  'Currency': 'currency',
+  'Delivery address': 'delivery_address',
+  'Delivery city': 'delivery_city',
+  'Delivery state': 'delivery_state',
+  'Delivery country': 'delivery_country',
+  'Delivery zip/postal code': 'delivery_zip',
+  'Billing name': 'billing_name',
+  'Billing address': 'billing_address',
+  'Billing city': 'billing_city',
+  'Billing state': 'billing_state',
+  'Billing country': 'billing_country',
+  'Billing zip/postal code': 'billing_zip',
+  'Payment status': 'payment_status',
+  'Payment method': 'payment_method',
+  'Fulfillment status': 'fulfillment_status',
+  'Tracking number': 'tracking_number'
+};
 
 export const processOrdersFile = async (file: File): Promise<{ success: number; errors: string[] }> => {
   const results = { success: 0, errors: [] as string[] };
@@ -52,26 +77,32 @@ const processCSVFile = async (file: File): Promise<{ success: number; errors: st
           const row = parseResults.data[i] as any;
           
           try {
+            // Map the row data using the column mapping
+            const mappedData = mapRowData(row);
+            
             // Validate required fields
-            if (!row.order_number) {
+            if (!mappedData.order_number) {
               results.errors.push(`שורה ${i + 1}: חסר מספר הזמנה`);
               continue;
             }
 
+            // Build shipping address from available fields
+            const shippingAddress = buildShippingAddress(mappedData);
+
             // Map CSV columns to order data
             const orderData: Omit<Order, 'id' | 'user_id' | 'created_at' | 'updated_at'> = {
-              external_id: row.external_id || row.order_number,
-              order_number: row.order_number,
-              platform: (row.platform || 'manual') as 'manual' | 'wix' | 'shopify',
-              customer_name: row.customer_name || row.name,
-              customer_email: row.customer_email || row.email,
-              customer_phone: row.customer_phone || row.phone,
-              total_amount: row.total_amount ? parseFloat(row.total_amount) : undefined,
-              currency: row.currency || 'ILS',
-              weight: row.weight ? parseFloat(row.weight) : undefined,
+              external_id: mappedData.order_number,
+              order_number: mappedData.order_number,
+              platform: 'manual' as const,
+              customer_name: mappedData.customer_name,
+              customer_email: mappedData.customer_email,
+              customer_phone: mappedData.customer_phone,
+              total_amount: mappedData.total_amount ? parseFloat(mappedData.total_amount.toString().replace(/[^\d.-]/g, '')) : undefined,
+              currency: mappedData.currency || 'ILS',
+              weight: undefined,
               status: 'pending',
-              order_date: row.order_date ? new Date(row.order_date).toISOString() : new Date().toISOString(),
-              shipping_address: row.shipping_address ? JSON.parse(row.shipping_address) : undefined,
+              order_date: mappedData.order_date ? parseOrderDate(mappedData.order_date) : new Date().toISOString(),
+              shipping_address: shippingAddress,
             };
 
             await saveOrder(orderData);
@@ -91,6 +122,63 @@ const processCSVFile = async (file: File): Promise<{ success: number; errors: st
       }
     });
   });
+};
+
+// Helper function to map row data using column mapping
+const mapRowData = (row: any): any => {
+  const mappedData: any = {};
+  
+  // Map known columns
+  Object.keys(row).forEach(key => {
+    const mappedKey = COLUMN_MAPPING[key];
+    if (mappedKey) {
+      mappedData[mappedKey] = row[key];
+    }
+  });
+  
+  // Also keep original keys for backward compatibility
+  Object.keys(row).forEach(key => {
+    if (!mappedData[key.toLowerCase().replace(/[^a-z0-9]/g, '_')]) {
+      mappedData[key.toLowerCase().replace(/[^a-z0-9]/g, '_')] = row[key];
+    }
+  });
+  
+  return mappedData;
+};
+
+// Helper function to build shipping address from available fields
+const buildShippingAddress = (data: any): any => {
+  const address = {
+    name: data.customer_name || data.billing_name,
+    address: data.delivery_address || data.billing_address,
+    city: data.delivery_city || data.billing_city,
+    state: data.delivery_state || data.billing_state,
+    country: data.delivery_country || data.billing_country,
+    zipCode: data.delivery_zip || data.billing_zip,
+  };
+  
+  // Only return address if at least one field is present
+  if (Object.values(address).some(value => value && value.trim())) {
+    return address;
+  }
+  
+  return undefined;
+};
+
+// Helper function to parse order date
+const parseOrderDate = (dateString: string): string => {
+  try {
+    // Try to parse the date
+    const date = new Date(dateString);
+    if (isNaN(date.getTime())) {
+      // If parsing fails, return current date
+      return new Date().toISOString();
+    }
+    return date.toISOString();
+  } catch (error) {
+    console.error('Error parsing date:', dateString, error);
+    return new Date().toISOString();
+  }
 };
 
 // Helper function to validate order data
