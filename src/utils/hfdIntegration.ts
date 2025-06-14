@@ -5,10 +5,10 @@ import { useToast } from "@/hooks/use-toast";
 const HFD_API_BASE_URL = "https://test.hfd.co.il/RunCom.WebAPI/api/v1";
 
 export interface HfdSettings {
-  clientNumber: string;
+  client_number: string;
   token: string;
-  shipmentTypeCode: string;
-  cargoTypeHaloch: string;
+  shipment_type_code: string;
+  cargo_type_haloch: string;
 }
 
 export interface HfdShipmentResponse {
@@ -29,7 +29,7 @@ export interface HfdShipmentResponse {
  * Create a shipment in HFD system
  */
 export const createHfdShipment = async (shipmentData: any, settings: HfdSettings): Promise<HfdShipmentResponse> => {
-  if (!settings.clientNumber || !settings.token) {
+  if (!settings.client_number || !settings.token) {
     throw new Error("Missing HFD credentials");
   }
 
@@ -64,7 +64,7 @@ export const createHfdShipment = async (shipmentData: any, settings: HfdSettings
  * Test HFD connection
  */
 export const testHfdConnection = async (settings: HfdSettings) => {
-  if (!settings.clientNumber || !settings.token) {
+  if (!settings.client_number || !settings.token) {
     return {
       success: false,
       message: "חסרים פרטי התחברות ל-HFD"

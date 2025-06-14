@@ -1,3 +1,4 @@
+
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -8,7 +9,7 @@ import { ArrowLeft, Upload, ExternalLink, Truck, Package, Check } from "lucide-r
 import { useNavigate } from "react-router-dom";
 import { useState, useEffect } from "react";
 import { 
-  WixCredentials, 
+  WixCredentials as WixIntegrationCredentials, 
   startWixIntegration, 
   testWixConnection, 
   getWixAppInstallUrl,
@@ -17,7 +18,7 @@ import {
 import { testHfdConnection, createHfdShipment } from "@/utils/hfdIntegration";
 import WixOrdersList from "@/components/WixOrdersList";
 import { saveHfdSettings, getHfdSettings, saveWixCredentials, getWixCredentials } from "@/services/database";
-import { HfdSettings as HfdSettingsType } from "@/lib/supabase";
+import { HfdSettings as HfdSettingsType, WixCredentials } from "@/lib/supabase";
 import { supabase } from "@/lib/supabase";
 
 const Settings = () => {
@@ -189,14 +190,26 @@ const Settings = () => {
     setIsStartingWixIntegration(true);
     try {
       const credentials = await startWixIntegration(wixSettings.site_url);
-      setWixSettings(credentials);
       
-      // Save to database instead of localStorage
+      // Convert from WixIntegrationCredentials to WixCredentials format
+      const dbCredentials: WixCredentials = {
+        site_url: credentials.siteUrl,
+        app_id: credentials.appId,
+        api_key: credentials.apiKey,
+        refresh_token: credentials.refreshToken || "",
+        access_token: credentials.accessToken,
+        is_connected: credentials.isConnected
+      };
+      
+      setWixSettings(dbCredentials);
+      
+      // Save to database
       await saveWixCredentials({
         site_url: credentials.siteUrl,
         app_id: credentials.appId,
         api_key: credentials.apiKey,
         refresh_token: credentials.refreshToken,
+        access_token: credentials.accessToken,
         is_connected: credentials.isConnected
       });
       
@@ -227,9 +240,19 @@ const Settings = () => {
 
     setIsCompletingWixIntegration(true);
     try {
-      const updatedCredentials = await completeWixIntegration(wixSettings, wixAuthCode);
+      // Convert WixCredentials to WixIntegrationCredentials format for the integration function
+      const integrationCredentials: WixIntegrationCredentials = {
+        siteUrl: wixSettings.site_url,
+        appId: wixSettings.app_id,
+        apiKey: wixSettings.api_key,
+        refreshToken: wixSettings.refresh_token,
+        accessToken: wixSettings.access_token,
+        isConnected: wixSettings.is_connected
+      };
       
-      // Save to database instead of localStorage
+      const updatedCredentials = await completeWixIntegration(integrationCredentials, wixAuthCode);
+      
+      // Save to database
       await saveWixCredentials({
         site_url: updatedCredentials.siteUrl,
         app_id: updatedCredentials.appId,
@@ -239,7 +262,17 @@ const Settings = () => {
         is_connected: updatedCredentials.isConnected
       });
       
-      setWixSettings(updatedCredentials);
+      // Convert back to WixCredentials format for state
+      const dbCredentials: WixCredentials = {
+        site_url: updatedCredentials.siteUrl,
+        app_id: updatedCredentials.appId,
+        api_key: updatedCredentials.apiKey,
+        refresh_token: updatedCredentials.refreshToken || "",
+        access_token: updatedCredentials.accessToken,
+        is_connected: updatedCredentials.isConnected
+      };
+      
+      setWixSettings(dbCredentials);
       toast({
         title: "חיבור Wix הושלם בהצלחה",
         description: "אפליקציית Wix מחוברת כעת למערכת",
@@ -267,7 +300,17 @@ const Settings = () => {
   const handleTestWixConnection = async () => {
     setIsTestingWix(true);
     try {
-      const result = await testWixConnection(wixSettings);
+      // Convert to WixIntegrationCredentials format for the test function
+      const integrationCredentials: WixIntegrationCredentials = {
+        siteUrl: wixSettings.site_url,
+        appId: wixSettings.app_id,
+        apiKey: wixSettings.api_key,
+        refreshToken: wixSettings.refresh_token,
+        accessToken: wixSettings.access_token,
+        isConnected: wixSettings.is_connected
+      };
+      
+      const result = await testWixConnection(integrationCredentials);
       toast({
         title: result.success ? "בדיקת חיבור Wix הצליחה" : "בדיקת חיבור Wix נכשלה",
         description: result.message,
