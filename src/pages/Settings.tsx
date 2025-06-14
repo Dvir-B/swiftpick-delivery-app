@@ -1,10 +1,11 @@
+
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, Upload, ExternalLink, Truck, Package, Check } from "lucide-react";
+import { ArrowLeft, Package } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useState, useEffect } from "react";
 import Papa from "papaparse";
@@ -16,10 +17,13 @@ import {
   completeWixIntegration
 } from "@/utils/wixIntegration";
 import { testHfdConnection, createHfdShipment, convertOrderToHfdShipment } from "@/utils/hfdIntegration";
-import WixOrdersList from "@/components/WixOrdersList";
 import { saveHfdSettings, getHfdSettings, saveWixCredentials, getWixCredentials } from "@/services/database";
 import { HfdSettings as HfdSettingsType, WixCredentials } from "@/lib/supabase";
 import { supabase } from "@/lib/supabase";
+import HfdSettings from "@/components/settings/HfdSettings";
+import WixSettings from "@/components/settings/WixSettings";
+import ShopifySettings from "@/components/settings/ShopifySettings";
+import FileUpload from "@/components/settings/FileUpload";
 
 const Settings = () => {
   const { toast } = useToast();
@@ -405,76 +409,13 @@ const Settings = () => {
 
         <TabsContent value="shipping">
           <div className="space-y-4">
-            <Card>
-              <CardHeader>
-                <CardTitle>חברת HFD</CardTitle>
-                <CardDescription>הגדרות חיבור לחברת המשלוחים HFD</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="bg-blue-50 p-4 rounded-lg mb-4">
-                  <p className="text-sm text-blue-800">
-                    לחיבור מערכת ה-ERP של HFD, אנא הזן את הפרטים הבאים. 
-                    אם אין לך את הפרטים, פנה לחברת HFD לקבלת מספר לקוח וטוקן גישה.
-                  </p>
-                </div>
-                <div className="space-y-2">
-                  <Label>מספר לקוח (Client Number)</Label>
-                  <Input 
-                    placeholder="לדוגמה: 3399" 
-                    value={hfdSettings.client_number}
-                    onChange={(e) => handleHfdSettingsChange('client_number', e.target.value)}
-                  />
-                  
-                  <Label>טוקן גישה (API Token)</Label>
-                  <Input 
-                    placeholder="הזן את הטוקן שקיבלת מחברת HFD" 
-                    type="password"
-                    value={hfdSettings.token}
-                    onChange={(e) => handleHfdSettingsChange('token', e.target.value)}
-                  />
-                  
-                  <Label>קוד סוג משלוח (Shipment Type Code)</Label>
-                  <Input 
-                    placeholder="לדוגמה: 35" 
-                    value={hfdSettings.shipment_type_code}
-                    onChange={(e) => handleHfdSettingsChange('shipment_type_code', e.target.value)}
-                  />
-                  
-                  <Label>קוד סוג מטען (Cargo Type Haloch)</Label>
-                  <Input 
-                    placeholder="לדוגמה: 10" 
-                    value={hfdSettings.cargo_type_haloch}
-                    onChange={(e) => handleHfdSettingsChange('cargo_type_haloch', e.target.value)}
-                  />
-                  
-                  <div className="pt-4 flex items-center justify-between">
-                    <Button 
-                      onClick={handleSaveHfdSettings}
-                      className="flex items-center"
-                    >
-                      <Truck className="mr-2 h-4 w-4" />
-                      שמור הגדרות HFD
-                    </Button>
-                    
-                    <Button 
-                      variant="outline"
-                      onClick={handleTestHfdConnection}
-                      disabled={isTestingHfd || !hfdSettings.client_number || !hfdSettings.token}
-                      className="flex items-center"
-                    >
-                      {isTestingHfd ? (
-                        <>טוען...</>
-                      ) : (
-                        <>
-                          <Check className="mr-2 h-4 w-4" />
-                          בדיקת חיבור
-                        </>
-                      )}
-                    </Button>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+            <HfdSettings 
+              hfdSettings={hfdSettings}
+              onSettingsChange={handleHfdSettingsChange}
+              onSave={handleSaveHfdSettings}
+              onTest={handleTestHfdConnection}
+              isTesting={isTestingHfd}
+            />
             
             <Card>
               <CardHeader>
@@ -498,176 +439,26 @@ const Settings = () => {
 
         <TabsContent value="ecommerce">
           <div className="space-y-4">
-            <Card>
-              <CardHeader>
-                <CardTitle>Wix</CardTitle>
-                <CardDescription>חיבור אתר Wix</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-2">
-                  <div className="bg-blue-50 p-4 rounded-lg mb-4">
-                    <p className="text-sm text-blue-800">
-                      לחיבור מערכת זו לחנות Wix שלך, יש לעבור שלושה שלבים:
-                      <br />1. הזן את כתובת האתר שלך
-                      <br />2. התקן את האפליקציה בחנות Wix שלך
-                      <br />3. השלם את תהליך ההרשאה
-                    </p>
-                  </div>
-                  
-                  <Input 
-                    placeholder="לדוגמה: mysite.wixsite.com/mystore" 
-                    className="mb-4"
-                    value={wixSettings.site_url}
-                    onChange={(e) => handleWixUrlChange(e.target.value)}
-                    disabled={!!wixSettings.app_id}
-                  />
-                  
-                  {!wixSettings.app_id ? (
-                    <>
-                      <Button 
-                        onClick={() => window.open('https://www.wix.com/account/sites', '_blank')}
-                        variant="outline"
-                        className="w-full mb-2"
-                      >
-                        <ExternalLink className="w-4 h-4 ml-2" />
-                        כניסה לפאנל הניהול של Wix
-                      </Button>
-                      <Button 
-                        onClick={handleStartWixIntegration}
-                        disabled={isStartingWixIntegration || !wixSettings.site_url}
-                        className="w-full"
-                      >
-                        {isStartingWixIntegration ? "מתחיל תהליך..." : "התחל תהליך חיבור"}
-                      </Button>
-                    </>
-                  ) : wixSettings.is_connected ? (
-                    <div className="bg-green-50 p-4 rounded-lg mb-4 flex items-center">
-                      <Check className="h-5 w-5 text-green-600 mr-2" />
-                      <p className="text-sm text-green-800">
-                        החנות מחוברת בהצלחה! ניתן לטעון הזמנות ולהפוך אותן למשלוחים.
-                      </p>
-                    </div>
-                  ) : (
-                    <div className="space-y-2">
-                      <div className={`bg-${wixAuthCode ? "yellow" : "blue"}-50 p-4 rounded-lg mb-4`}>
-                        <p className="text-sm text-blue-800">
-                          {wixAuthCode 
-                            ? "קוד אימות התקבל! לחץ על הכפתור למטה להשלמת תהליך החיבור."
-                            : "כעת יש להתקין את האפליקציה בחנות Wix שלך. לחץ על הכפתור למטה כדי לפתוח את דף ההתקנה."
-                          }
-                        </p>
-                      </div>
-                      
-                      {wixAuthCode ? (
-                        <Button 
-                          onClick={handleCompleteWixIntegration}
-                          disabled={isCompletingWixIntegration}
-                          className="w-full"
-                        >
-                          {isCompletingWixIntegration ? "משלים חיבור..." : "השלם את תהליך החיבור"}
-                        </Button>
-                      ) : (
-                        <Button 
-                          onClick={openWixAppInstall}
-                          className="w-full"
-                        >
-                          התקן את האפליקציה בחנות Wix שלך
-                        </Button>
-                      )}
-                    </div>
-                  )}
-                  
-                  {wixSettings.is_connected && (
-                    <Button 
-                      onClick={handleTestWixConnection}
-                      variant="outline"
-                      disabled={isTestingWix}
-                      className="w-full mt-4"
-                    >
-                      {isTestingWix ? "בודק חיבור..." : "בדוק חיבור"}
-                    </Button>
-                  )}
-                </div>
-
-                {wixSettings.is_connected && (
-                  <div className="mt-8">
-                    <WixOrdersList 
-                      credentials={wixSettings}
-                      hfdSettings={hfdSettings}
-                      onCreateShipment={handleCreateShipment}
-                    />
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle>Shopify</CardTitle>
-                <CardDescription>חיבור חנות Shopify</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-2">
-                  <div className="bg-blue-50 p-4 rounded-lg mb-4">
-                    <p className="text-sm text-blue-800">
-                      על מנת לחבר את החנות שלך, פשוט העתק את כתובת החנות שלך והזן אותה כאן.
-                      אנחנו נדריך אותך בתהליך החיבור צעד אחר צעד.
-                    </p>
-                  </div>
-                  <Input 
-                    placeholder="לדוגמה: my-store.myshopify.com" 
-                    className="mb-4"
-                  />
-                  <Button 
-                    onClick={() => window.open('https://admin.shopify.com/store-login', '_blank')}
-                    variant="outline"
-                    className="w-full mb-2"
-                  >
-                    <ExternalLink className="w-4 h-4 ml-2" />
-                    כניסה לפאנל הניהול של Shopify
-                  </Button>
-                  <Button 
-                    onClick={() => handleApiConnection("Shopify")}
-                    className="w-full"
-                  >
-                    התחל תהליך חיבור
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
+            <WixSettings 
+              wixSettings={wixSettings}
+              hfdSettings={hfdSettings}
+              wixAuthCode={wixAuthCode}
+              isStartingWixIntegration={isStartingWixIntegration}
+              isCompletingWixIntegration={isCompletingWixIntegration}
+              isTestingWix={isTestingWix}
+              onUrlChange={handleWixUrlChange}
+              onStartIntegration={handleStartWixIntegration}
+              onCompleteIntegration={handleCompleteWixIntegration}
+              onOpenWixAppInstall={openWixAppInstall}
+              onTestConnection={handleTestWixConnection}
+              onCreateShipment={handleCreateShipment}
+            />
+            <ShopifySettings onApiConnection={handleApiConnection} />
           </div>
         </TabsContent>
 
         <TabsContent value="excel">
-          <Card>
-            <CardHeader>
-              <CardTitle>העלאת הזמנות מקובץ</CardTitle>
-              <CardDescription>העלה קובץ CSV, XLSX או XLS עם פרטי ההזמנות</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="flex items-center justify-center w-full">
-                <label
-                  htmlFor="excel-upload"
-                  className="flex flex-col items-center justify-center w-full h-64 border-2 border-dashed rounded-lg cursor-pointer bg-gray-50 hover:bg-gray-100"
-                >
-                  <div className="flex flex-col items-center justify-center pt-5 pb-6">
-                    <Upload className="w-10 h-10 mb-3 text-gray-400" />
-                    <p className="mb-2 text-sm text-gray-500">
-                      <span className="font-semibold">לחץ להעלאת קובץ</span> או גרור לכאן
-                    </p>
-                    <p className="text-xs text-gray-500">CSV, XLSX, XLS</p>
-                  </div>
-                  <input
-                    id="excel-upload"
-                    type="file"
-                    className="hidden"
-                    accept=".csv,.xlsx,.xls"
-                    onChange={handleFileUpload}
-                  />
-                </label>
-              </div>
-            </CardContent>
-          </Card>
+          <FileUpload onFileUpload={handleFileUpload} />
         </TabsContent>
       </Tabs>
     </div>
