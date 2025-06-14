@@ -12,7 +12,7 @@ const FileUpload = ({ onFileUpload }: FileUploadProps) => {
       <CardHeader>
         <CardTitle>העלאת הזמנות מקובץ</CardTitle>
         <CardDescription>העלה קובץ CSV, XLSX או XLS עם פרטי ההזמנות</CardDescription>
-      </Header>
+      </CardHeader>
       <CardContent>
         <div className="flex items-center justify-center w-full">
           <label

@@ -116,7 +116,7 @@ export const getWixCredentials = async (): Promise<WixCredentials | null> => {
   return data;
 };
 
-// Orders functions
+// Orders functions with soft delete
 export const saveOrder = async (order: Omit<Order, 'id' | 'user_id' | 'created_at' | 'updated_at'>) => {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error('User not authenticated');
@@ -142,10 +142,70 @@ export const getOrders = async (): Promise<Order[]> => {
     .from('orders')
     .select('*')
     .eq('user_id', user.id)
+    .is('deleted_at', null) // Only get non-deleted orders
     .order('created_at', { ascending: false });
 
   if (error) throw error;
   return data || [];
+};
+
+export const softDeleteOrder = async (orderId: string) => {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('User not authenticated');
+
+  const { data, error } = await supabase
+    .from('orders')
+    .update({
+      deleted_at: new Date().toISOString(),
+      deleted_by: user.id
+    })
+    .eq('id', orderId)
+    .eq('user_id', user.id)
+    .is('deleted_at', null) // Only allow deleting non-deleted orders
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data;
+};
+
+export const restoreOrder = async (orderId: string) => {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('User not authenticated');
+
+  const { data, error } = await supabase
+    .from('orders')
+    .update({
+      deleted_at: null,
+      deleted_by: null
+    })
+    .eq('id', orderId)
+    .eq('user_id', user.id)
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data;
+};
+
+export const updateOrderStatus = async (orderId: string, status: Order['status']) => {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('User not authenticated');
+
+  const { data, error } = await supabase
+    .from('orders')
+    .update({
+      status,
+      updated_at: new Date().toISOString()
+    })
+    .eq('id', orderId)
+    .eq('user_id', user.id)
+    .is('deleted_at', null) // Only update non-deleted orders
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data;
 };
 
 // Shipments functions
@@ -189,13 +249,14 @@ export const getShipments = async (): Promise<Shipment[]> => {
     .from('shipments')
     .select(`
       *,
-      orders (
+      orders!inner (
         order_number,
         customer_name,
         customer_email
       )
     `)
     .eq('user_id', user.id)
+    .eq('orders.deleted_at', null) // Only get shipments for non-deleted orders
     .order('created_at', { ascending: false });
 
   if (error) throw error;
