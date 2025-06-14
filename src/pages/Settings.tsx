@@ -7,6 +7,7 @@ import { useToast } from "@/hooks/use-toast";
 import { ArrowLeft, Upload, ExternalLink, Truck, Package, Check } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useState, useEffect } from "react";
+import Papa from "papaparse";
 import { 
   WixCredentials as WixIntegrationCredentials, 
   startWixIntegration, 
@@ -120,10 +121,39 @@ const Settings = () => {
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
-      toast({
-        title: "הקובץ הועלה בהצלחה",
-        description: `${file.name} נקלט במערכת`,
-      });
+      if (file.type === 'text/csv' || file.name.endsWith('.csv')) {
+        Papa.parse(file, {
+          header: true,
+          skipEmptyLines: true,
+          complete: (results) => {
+            console.log("Parsed CSV data:", results.data);
+            toast({
+              title: "קובץ CSV פוענח בהצלחה",
+              description: `נמצאו ${results.data.length} רשומות.`,
+            });
+            // Here you can process the orders, e.g., save them to the database
+          },
+          error: (error: any) => {
+            toast({
+              title: "שגיאה בפענוח קובץ CSV",
+              description: error.message,
+              variant: "destructive",
+            });
+          }
+        });
+      } else if (file.type.includes('spreadsheetml') || file.name.endsWith('.xls') || file.name.endsWith('.xlsx')) {
+        // Logic for excel files can be added here
+        toast({
+          title: "הקובץ הועלה בהצלחה",
+          description: `${file.name} נקלט במערכת. עיבוד קבצי אקסל יתווסף בקרוב.`,
+        });
+      } else {
+        toast({
+          title: "סוג קובץ לא נתמך",
+          description: "אנא העלה קובץ CSV, XLSX או XLS.",
+          variant: "destructive",
+        });
+      }
     }
   };
 
@@ -611,8 +641,8 @@ const Settings = () => {
         <TabsContent value="excel">
           <Card>
             <CardHeader>
-              <CardTitle>העלאת הזמנות מאקסל</CardTitle>
-              <CardDescription>העלה קובץ אקסל עם פרטי ההזמנות</CardDescription>
+              <CardTitle>העלאת הזמנות מקובץ</CardTitle>
+              <CardDescription>העלה קובץ CSV, XLSX או XLS עם פרטי ההזמנות</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="flex items-center justify-center w-full">
@@ -625,13 +655,13 @@ const Settings = () => {
                     <p className="mb-2 text-sm text-gray-500">
                       <span className="font-semibold">לחץ להעלאת קובץ</span> או גרור לכאן
                     </p>
-                    <p className="text-xs text-gray-500">XLSX, XLS</p>
+                    <p className="text-xs text-gray-500">CSV, XLSX, XLS</p>
                   </div>
                   <input
                     id="excel-upload"
                     type="file"
                     className="hidden"
-                    accept=".xlsx,.xls"
+                    accept=".csv,.xlsx,.xls"
                     onChange={handleFileUpload}
                   />
                 </label>
