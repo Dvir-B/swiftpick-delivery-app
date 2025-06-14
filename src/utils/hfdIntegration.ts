@@ -11,6 +11,28 @@ export interface HfdSettings {
   cargo_type_haloch: string;
 }
 
+export interface HfdShipmentRequest {
+  client_number: string;
+  token: string;
+  shipment_type_code: string;
+  cargo_type_haloch: string;
+  reference_num_1?: string;
+  reference_num_2?: string;
+  sender_name: string;
+  sender_address: string;
+  sender_city: string;
+  sender_zip: string;
+  sender_phone: string;
+  recipient_name: string;
+  recipient_address: string;
+  recipient_city: string;
+  recipient_zip: string;
+  recipient_phone: string;
+  weight?: number;
+  pieces?: number;
+  remarks?: string;
+}
+
 export interface HfdShipmentResponse {
   shipmentNumber: number;
   randNumber: string;
@@ -28,31 +50,43 @@ export interface HfdShipmentResponse {
 /**
  * Create a shipment in HFD system
  */
-export const createHfdShipment = async (shipmentData: any, settings: HfdSettings): Promise<HfdShipmentResponse> => {
-  if (!settings.client_number || !settings.token) {
+export const createHfdShipment = async (shipmentData: HfdShipmentRequest): Promise<HfdShipmentResponse> => {
+  if (!shipmentData.client_number || !shipmentData.token) {
     throw new Error("Missing HFD credentials");
   }
 
   console.log("Creating HFD shipment with data:", shipmentData);
   
   try {
-    // In a real implementation, this would be an actual API call to HFD
-    // For demonstration purposes, we'll simulate the API response
-    await new Promise(resolve => setTimeout(resolve, 1500));
+    const response = await fetch(`${HFD_API_BASE_URL}/shipments`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${shipmentData.token}`,
+      },
+      body: JSON.stringify(shipmentData),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`HFD API Error: ${response.status} - ${errorText}`);
+    }
+
+    const result = await response.json();
     
-    // Mock successful response
+    // Map the API response to our interface
     return {
-      shipmentNumber: Math.floor(10000000 + Math.random() * 90000000),
-      randNumber: Math.random().toString(36).substring(2, 15),
-      referenceNumber1: shipmentData.referenceNum1,
-      referenceNumber2: shipmentData.referenceNum2,
-      deliveryLine: 118,
-      deliveryArea: 3,
-      errorCode: null,
-      errorMessage: null,
-      existingShipmentNumber: 0,
-      sortingCode: 0,
-      pickUpCode: 0
+      shipmentNumber: result.shipment_number || result.shipmentNumber,
+      randNumber: result.rand_number || result.randNumber || '',
+      referenceNumber1: result.reference_number_1 || result.referenceNumber1 || '',
+      referenceNumber2: result.reference_number_2 || result.referenceNumber2 || '',
+      deliveryLine: result.delivery_line || result.deliveryLine || 0,
+      deliveryArea: result.delivery_area || result.deliveryArea || 0,
+      errorCode: result.error_code || result.errorCode || null,
+      errorMessage: result.error_message || result.errorMessage || null,
+      existingShipmentNumber: result.existing_shipment_number || result.existingShipmentNumber || 0,
+      sortingCode: result.sorting_code || result.sortingCode || 0,
+      pickUpCode: result.pickup_code || result.pickUpCode || 0
     };
   } catch (error) {
     console.error("Error creating HFD shipment:", error);
@@ -72,12 +106,35 @@ export const testHfdConnection = async (settings: HfdSettings) => {
   }
   
   try {
-    // Simulate API check
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    const response = await fetch(`${HFD_API_BASE_URL}/test`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${settings.token}`,
+      },
+      body: JSON.stringify({
+        client_number: settings.client_number,
+        token: settings.token
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      return {
+        success: false,
+        message: `שגיאה בבדיקת החיבור: ${response.status} - ${errorText}`
+      };
+    }
+
+    const result = await response.json();
     
-    console.log("Testing HFD connection with settings:", settings);
+    if (result.success === false || result.error_code) {
+      return {
+        success: false,
+        message: result.error_message || result.message || "שגיאה לא ידועה בבדיקת החיבור"
+      };
+    }
     
-    // For demo purposes, always return success
     return {
       success: true,
       message: "החיבור ל-HFD תקין"
@@ -94,6 +151,32 @@ export const testHfdConnection = async (settings: HfdSettings) => {
  * Generate shipping label URL
  */
 export const getShippingLabelUrl = (shipmentNumber: number) => {
-  // In a real implementation, this would generate a URL to the HFD label printing endpoint
   return `https://test.hfd.co.il/RunCom.Server/Request.aspx?APPNAME=run&PRGNAME=ship_print_ws&ARGUMENTS=-N${shipmentNumber},-A,-A,-A,-A,-A,-A,-N,-A`;
+};
+
+/**
+ * Convert order data to HFD shipment format
+ */
+export const convertOrderToHfdShipment = (orderData: any, hfdSettings: HfdSettings): HfdShipmentRequest => {
+  return {
+    client_number: hfdSettings.client_number,
+    token: hfdSettings.token,
+    shipment_type_code: hfdSettings.shipment_type_code,
+    cargo_type_haloch: hfdSettings.cargo_type_haloch,
+    reference_num_1: orderData.order_number || orderData.referenceNum1 || '',
+    reference_num_2: orderData.external_id || orderData.referenceNum2 || '',
+    sender_name: "החנות שלי", // This should come from business settings
+    sender_address: "כתובת השולח", // This should come from business settings
+    sender_city: "תל אביב", // This should come from business settings
+    sender_zip: "1234567", // This should come from business settings
+    sender_phone: "03-1234567", // This should come from business settings
+    recipient_name: orderData.customer_name || `${orderData.customerInfo?.firstName || ''} ${orderData.customerInfo?.lastName || ''}`.trim(),
+    recipient_address: orderData.shipping_address?.addressLine1 || orderData.shippingInfo?.shipmentDetails?.address?.addressLine1 || '',
+    recipient_city: orderData.shipping_address?.city || orderData.shippingInfo?.shipmentDetails?.address?.city || '',
+    recipient_zip: orderData.shipping_address?.zipCode || orderData.shippingInfo?.shipmentDetails?.address?.zipCode || '',
+    recipient_phone: orderData.customer_phone || orderData.customerInfo?.phone || '',
+    weight: orderData.weight || orderData.totals?.weight || 0,
+    pieces: 1,
+    remarks: orderData.notes || orderData.remarks || ''
+  };
 };

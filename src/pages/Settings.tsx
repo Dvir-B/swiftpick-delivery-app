@@ -14,7 +14,7 @@ import {
   getWixAppInstallUrl,
   completeWixIntegration
 } from "@/utils/wixIntegration";
-import { testHfdConnection, createHfdShipment } from "@/utils/hfdIntegration";
+import { testHfdConnection, createHfdShipment, convertOrderToHfdShipment } from "@/utils/hfdIntegration";
 import WixOrdersList from "@/components/WixOrdersList";
 import { saveHfdSettings, getHfdSettings, saveWixCredentials, getWixCredentials } from "@/services/database";
 import { HfdSettings as HfdSettingsType, WixCredentials } from "@/lib/supabase";
@@ -203,7 +203,7 @@ const Settings = () => {
         app_id: credentials.appId,
         api_key: credentials.apiKey,
         refresh_token: credentials.refreshToken || "",
-        access_token: credentials.accessToken || "",
+        access_token: "", // WixIntegrationCredentials doesn't have accessToken
         is_connected: credentials.isConnected
       };
       
@@ -215,7 +215,7 @@ const Settings = () => {
         app_id: credentials.appId,
         api_key: credentials.apiKey,
         refresh_token: credentials.refreshToken,
-        access_token: credentials.accessToken,
+        access_token: "", // WixIntegrationCredentials doesn't have accessToken
         is_connected: credentials.isConnected
       });
       
@@ -252,7 +252,6 @@ const Settings = () => {
         appId: wixSettings.app_id,
         apiKey: wixSettings.api_key,
         refreshToken: wixSettings.refresh_token,
-        accessToken: wixSettings.access_token,
         isConnected: wixSettings.is_connected
       };
       
@@ -264,7 +263,7 @@ const Settings = () => {
         app_id: updatedCredentials.appId,
         api_key: updatedCredentials.apiKey,
         refresh_token: updatedCredentials.refreshToken,
-        access_token: updatedCredentials.accessToken,
+        access_token: "", // WixIntegrationCredentials doesn't have accessToken
         is_connected: updatedCredentials.isConnected
       });
       
@@ -275,7 +274,7 @@ const Settings = () => {
         app_id: updatedCredentials.appId,
         api_key: updatedCredentials.apiKey,
         refresh_token: updatedCredentials.refreshToken || "",
-        access_token: updatedCredentials.accessToken || "",
+        access_token: "", // WixIntegrationCredentials doesn't have accessToken
         is_connected: updatedCredentials.isConnected
       };
       
@@ -313,7 +312,6 @@ const Settings = () => {
         appId: wixSettings.app_id,
         apiKey: wixSettings.api_key,
         refreshToken: wixSettings.refresh_token,
-        accessToken: wixSettings.access_token,
         isConnected: wixSettings.is_connected
       };
       
@@ -336,7 +334,9 @@ const Settings = () => {
 
   const handleCreateShipment = async (shipmentData: any) => {
     try {
-      const response = await createHfdShipment(shipmentData, hfdSettings);
+      // Convert the order data to HFD format using the new utility function
+      const hfdShipmentData = convertOrderToHfdShipment(shipmentData, hfdSettings);
+      const response = await createHfdShipment(hfdShipmentData);
       toast({
         title: "משלוח נוצר בהצלחה",
         description: `מספר משלוח: ${response.shipmentNumber}`,

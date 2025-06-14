@@ -3,10 +3,12 @@ import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { Package, FileText, Send } from "lucide-react";
-import { WixCredentials, WixOrder, fetchWixOrders, convertWixOrderToHfdShipment } from "@/utils/wixIntegration";
+import { WixCredentials as WixIntegrationCredentials, WixOrder, fetchWixOrders } from "@/utils/wixIntegration";
+import { convertOrderToHfdShipment } from "@/utils/hfdIntegration";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import { WixCredentials } from "@/lib/supabase";
 
 interface WixOrdersListProps {
   credentials: WixCredentials;
@@ -22,7 +24,16 @@ const WixOrdersList = ({ credentials, hfdSettings, onCreateShipment }: WixOrders
   const loadOrders = async () => {
     setLoading(true);
     try {
-      const fetchedOrders = await fetchWixOrders(credentials);
+      // Convert WixCredentials to WixIntegrationCredentials format
+      const integrationCredentials: WixIntegrationCredentials = {
+        siteUrl: credentials.site_url,
+        appId: credentials.app_id,
+        apiKey: credentials.api_key,
+        refreshToken: credentials.refresh_token,
+        isConnected: credentials.is_connected
+      };
+      
+      const fetchedOrders = await fetchWixOrders(integrationCredentials);
       setOrders(fetchedOrders);
       toast({
         title: "הזמנות נטענו בהצלחה",
@@ -41,8 +52,7 @@ const WixOrdersList = ({ credentials, hfdSettings, onCreateShipment }: WixOrders
 
   const handleCreateShipment = (order: WixOrder) => {
     try {
-      const shipmentData = convertWixOrderToHfdShipment(order, hfdSettings);
-      onCreateShipment(shipmentData);
+      onCreateShipment(order);
       toast({
         title: "הזמנה נשלחה ל-HFD",
         description: `הזמנה מספר ${order.number} נשלחה ליצירת משלוח`,
@@ -56,7 +66,7 @@ const WixOrdersList = ({ credentials, hfdSettings, onCreateShipment }: WixOrders
     }
   };
 
-  if (!credentials.isConnected) {
+  if (!credentials.is_connected) {
     return (
       <div className="text-center py-8 text-gray-500">
         <p>יש להתקין את האפליקציה בחנות Wix שלך ולהשלים את תהליך החיבור</p>
@@ -70,7 +80,7 @@ const WixOrdersList = ({ credentials, hfdSettings, onCreateShipment }: WixOrders
         <h3 className="text-lg font-medium">הזמנות Wix</h3>
         <Button 
           onClick={loadOrders} 
-          disabled={loading || !credentials.isConnected}
+          disabled={loading || !credentials.is_connected}
           className="flex items-center"
         >
           <FileText className="mr-2 h-4 w-4" />
@@ -123,7 +133,7 @@ const WixOrdersList = ({ credentials, hfdSettings, onCreateShipment }: WixOrders
                 <Button 
                   onClick={() => handleCreateShipment(order)} 
                   className="w-full flex items-center"
-                  disabled={!hfdSettings.clientNumber || !hfdSettings.token}
+                  disabled={!hfdSettings.client_number || !hfdSettings.token}
                 >
                   <Send className="mr-2 h-4 w-4" />
                   צור משלוח HFD
