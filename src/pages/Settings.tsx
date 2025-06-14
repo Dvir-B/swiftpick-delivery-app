@@ -50,22 +50,18 @@ const Settings = () => {
 
   // Check authentication and load settings
   useEffect(() => {
-    const checkAuth = async () => {
+    const checkAuthAndLoad = async () => {
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        toast({
-          title: "נדרש חיבור למערכת",
-          description: "יש להתחבר כדי לגשת להגדרות",
-          variant: "destructive"
-        });
-        navigate('/login');
-        return;
+      // ProtectedRoute should handle non-authenticated users.
+      // We proceed assuming user exists.
+      if (user) {
+        setUser(user);
+        await loadSettings();
       }
-      setUser(user);
-      await loadSettings();
     };
 
-    checkAuth();
+    checkAuthAndLoad();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Load settings from database

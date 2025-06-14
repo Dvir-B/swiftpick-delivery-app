@@ -1,6 +1,5 @@
 
 import { supabase, HfdSettings, WixCredentials, Order, Shipment } from '@/lib/supabase';
-import { useToast } from '@/hooks/use-toast';
 
 // HFD Settings functions
 export const saveHfdSettings = async (settings: Omit<HfdSettings, 'id' | 'user_id' | 'created_at' | 'updated_at'>) => {
