@@ -14,7 +14,7 @@ const ProtectedRoute = ({ children }: { children: ReactNode }) => {
       (_event, session) => {
         setSession(session);
         if (!session) {
-          navigate('/auth');
+          navigate('/login');
         }
         setLoading(false);
       }
@@ -22,7 +22,7 @@ const ProtectedRoute = ({ children }: { children: ReactNode }) => {
 
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (!session) {
-        navigate('/auth');
+        navigate('/login');
       }
       setSession(session);
       setLoading(false);
