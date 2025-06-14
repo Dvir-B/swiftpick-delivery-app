@@ -1,4 +1,3 @@
-
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -24,7 +23,7 @@ import { supabase } from "@/lib/supabase";
 const Settings = () => {
   const { toast } = useToast();
   const navigate = useNavigate();
-  const [user, setUser] = useState(null);
+  const [user, setUser] = useState<any>(null);
   const [hfdSettings, setHfdSettings] = useState<Omit<HfdSettingsType, 'id' | 'user_id' | 'created_at' | 'updated_at'>>({
     client_number: "",
     token: "",
@@ -33,9 +32,12 @@ const Settings = () => {
   });
 
   const [wixSettings, setWixSettings] = useState<WixCredentials>({
+    user_id: "",
     site_url: "",
+    app_id: "",
     api_key: "",
     refresh_token: "",
+    access_token: "",
     is_connected: false
   });
 
@@ -56,7 +58,7 @@ const Settings = () => {
           description: "יש להתחבר כדי לגשת להגדרות",
           variant: "destructive"
         });
-        navigate('/login'); // Assuming you have a login page
+        navigate('/login');
         return;
       }
       setUser(user);
@@ -86,12 +88,13 @@ const Settings = () => {
       const wixData = await getWixCredentials();
       if (wixData) {
         setWixSettings({
+          user_id: wixData.user_id,
           site_url: wixData.site_url,
+          app_id: wixData.app_id || "",
           api_key: wixData.api_key || "",
           refresh_token: wixData.refresh_token || "",
-          is_connected: wixData.is_connected,
-          app_id: wixData.app_id,
-          access_token: wixData.access_token
+          access_token: wixData.access_token || "",
+          is_connected: wixData.is_connected
         });
       }
     } catch (error) {
@@ -187,17 +190,20 @@ const Settings = () => {
   };
 
   const handleStartWixIntegration = async () => {
+    if (!user?.id) return;
+    
     setIsStartingWixIntegration(true);
     try {
       const credentials = await startWixIntegration(wixSettings.site_url);
       
       // Convert from WixIntegrationCredentials to WixCredentials format
       const dbCredentials: WixCredentials = {
+        user_id: user.id,
         site_url: credentials.siteUrl,
         app_id: credentials.appId,
         api_key: credentials.apiKey,
         refresh_token: credentials.refreshToken || "",
-        access_token: credentials.accessToken,
+        access_token: credentials.accessToken || "",
         is_connected: credentials.isConnected
       };
       
@@ -229,7 +235,7 @@ const Settings = () => {
   };
 
   const handleCompleteWixIntegration = async () => {
-    if (!wixAuthCode) {
+    if (!wixAuthCode || !user?.id) {
       toast({
         title: "שגיאה בהשלמת החיבור",
         description: "קוד אימות חסר, נסה להתקין את האפליקציה שוב",
@@ -264,11 +270,12 @@ const Settings = () => {
       
       // Convert back to WixCredentials format for state
       const dbCredentials: WixCredentials = {
+        user_id: user.id,
         site_url: updatedCredentials.siteUrl,
         app_id: updatedCredentials.appId,
         api_key: updatedCredentials.apiKey,
         refresh_token: updatedCredentials.refreshToken || "",
-        access_token: updatedCredentials.accessToken,
+        access_token: updatedCredentials.accessToken || "",
         is_connected: updatedCredentials.isConnected
       };
       
