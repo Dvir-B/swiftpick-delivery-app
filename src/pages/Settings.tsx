@@ -1,5 +1,5 @@
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import HfdSettings from "@/components/settings/HfdSettings";
@@ -8,16 +8,211 @@ import ShopifySettings from "@/components/settings/ShopifySettings";
 import FileUpload from "@/components/settings/FileUpload";
 import { processOrdersFile } from "@/services/fileProcessing";
 import { useToast } from "@/hooks/use-toast";
+import { getHfdSettings, saveHfdSettings, getWixCredentials, saveWixCredentials } from "@/services/database";
+import { startWixIntegration, completeWixIntegration, testWixConnection } from "@/utils/wixIntegration";
+import { testHfdConnection, createHfdShipment } from "@/utils/hfdIntegration";
+import { WixCredentials, HfdSettings as HfdSettingsType } from "@/lib/supabase";
 
 const Settings = () => {
   const { toast } = useToast();
   const [uploading, setUploading] = useState(false);
+  
+  // HFD Settings state
+  const [hfdSettings, setHfdSettings] = useState<Omit<HfdSettingsType, 'id' | 'user_id' | 'created_at' | 'updated_at'>>({
+    client_number: '',
+    token: '',
+    shipment_type_code: '',
+    cargo_type_haloch: '',
+    is_active: true
+  });
+  const [isTestingHfd, setIsTestingHfd] = useState(false);
 
-  const handleApiConnection = (service: string) => {
+  // Wix Settings state
+  const [wixSettings, setWixSettings] = useState<WixCredentials>({
+    user_id: '',
+    site_url: '',
+    app_id: '',
+    api_key: '',
+    refresh_token: '',
+    access_token: '',
+    is_connected: false
+  });
+  const [wixAuthCode, setWixAuthCode] = useState('');
+  const [isStartingWixIntegration, setIsStartingWixIntegration] = useState(false);
+  const [isCompletingWixIntegration, setIsCompletingWixIntegration] = useState(false);
+  const [isTestingWix, setIsTestingWix] = useState(false);
+
+  // Load settings on component mount
+  useEffect(() => {
+    loadSettings();
+  }, []);
+
+  const loadSettings = async () => {
+    try {
+      const [hfdData, wixData] = await Promise.all([
+        getHfdSettings(),
+        getWixCredentials()
+      ]);
+
+      if (hfdData) {
+        setHfdSettings({
+          client_number: hfdData.client_number,
+          token: hfdData.token,
+          shipment_type_code: hfdData.shipment_type_code,
+          cargo_type_haloch: hfdData.cargo_type_haloch,
+          is_active: hfdData.is_active ?? true
+        });
+      }
+
+      if (wixData) {
+        setWixSettings(wixData);
+      }
+    } catch (error) {
+      console.error('Error loading settings:', error);
+    }
+  };
+
+  // HFD Settings handlers
+  const handleHfdSettingsChange = (field: string, value: string) => {
+    setHfdSettings(prev => ({ ...prev, [field]: value }));
+  };
+
+  const handleHfdSave = async () => {
+    try {
+      await saveHfdSettings(hfdSettings);
+      toast({
+        title: "הגדרות נשמרו",
+        description: "הגדרות HFD נשמרו בהצלחה",
+      });
+    } catch (error) {
+      toast({
+        title: "שגיאה בשמירה",
+        description: "אירעה שגיאה בשמירת ההגדרות",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleHfdTest = async () => {
+    setIsTestingHfd(true);
+    try {
+      const result = await testHfdConnection(hfdSettings);
+      toast({
+        title: result.success ? "חיבור תקין" : "שגיאה בחיבור",
+        description: result.message,
+        variant: result.success ? "default" : "destructive",
+      });
+    } catch (error) {
+      toast({
+        title: "שגיאה בבדיקת חיבור",
+        description: "אירעה שגיאה בבדיקת החיבור",
+        variant: "destructive",
+      });
+    } finally {
+      setIsTestingHfd(false);
+    }
+  };
+
+  // Wix Settings handlers
+  const handleWixUrlChange = (value: string) => {
+    setWixSettings(prev => ({ ...prev, site_url: value }));
+  };
+
+  const handleStartWixIntegration = async () => {
+    setIsStartingWixIntegration(true);
+    try {
+      const credentials = await startWixIntegration(wixSettings.site_url);
+      const updatedCredentials = await saveWixCredentials(credentials);
+      setWixSettings(updatedCredentials);
+      
+      toast({
+        title: "תהליך החיבור התחיל",
+        description: "כעת יש להתקין את האפליקציה בחנות Wix שלך",
+      });
+    } catch (error) {
+      toast({
+        title: "שגיאה בתחילת תהליך החיבור",
+        description: error instanceof Error ? error.message : "שגיאה לא ידועה",
+        variant: "destructive",
+      });
+    } finally {
+      setIsStartingWixIntegration(false);
+    }
+  };
+
+  const handleCompleteWixIntegration = async () => {
+    setIsCompletingWixIntegration(true);
+    try {
+      const updatedCredentials = await completeWixIntegration(wixSettings, wixAuthCode);
+      const savedCredentials = await saveWixCredentials(updatedCredentials);
+      setWixSettings(savedCredentials);
+      setWixAuthCode('');
+      
+      toast({
+        title: "חיבור הושלם בהצלחה",
+        description: "החנות מחוברת למערכת",
+      });
+    } catch (error) {
+      toast({
+        title: "שגיאה בהשלמת החיבור",
+        description: error instanceof Error ? error.message : "שגיאה לא ידועה",
+        variant: "destructive",
+      });
+    } finally {
+      setIsCompletingWixIntegration(false);
+    }
+  };
+
+  const handleOpenWixAppInstall = () => {
+    // Simulate receiving auth code for demo
+    setWixAuthCode('demo_auth_code_' + Math.random().toString(36).substring(2, 10));
     toast({
-      title: "חיבור API",
-      description: `תחילת תהליך חיבור ל-${service}`,
+      title: "קוד אימות התקבל",
+      description: "כעת ניתן להשלים את תהליך החיבור",
     });
+  };
+
+  const handleTestWixConnection = async () => {
+    setIsTestingWix(true);
+    try {
+      const result = await testWixConnection({
+        siteUrl: wixSettings.site_url,
+        apiKey: wixSettings.api_key || '',
+        refreshToken: wixSettings.refresh_token || '',
+        isConnected: wixSettings.is_connected,
+        appId: wixSettings.app_id
+      });
+      
+      toast({
+        title: result.success ? "חיבור תקין" : "שגיאה בחיבור",
+        description: result.message,
+        variant: result.success ? "default" : "destructive",
+      });
+    } catch (error) {
+      toast({
+        title: "שגיאה בבדיקת חיבור",
+        description: "אירעה שגיאה בבדיקת החיבור",
+        variant: "destructive",
+      });
+    } finally {
+      setIsTestingWix(false);
+    }
+  };
+
+  const handleCreateShipment = async (shipmentData: any) => {
+    try {
+      const result = await createHfdShipment(shipmentData, hfdSettings);
+      toast({
+        title: "משלוח נוצר בהצלחה",
+        description: `משלוח מספר ${result.shipmentNumber} נוצר`,
+      });
+    } catch (error) {
+      toast({
+        title: "שגיאה ביצירת משלוח",
+        description: error instanceof Error ? error.message : "שגיאה לא ידועה",
+        variant: "destructive",
+      });
+    }
   };
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -60,7 +255,6 @@ const Settings = () => {
       });
     } finally {
       setUploading(false);
-      // Reset the file input
       event.target.value = '';
     }
   };
@@ -81,13 +275,32 @@ const Settings = () => {
 
         <TabsContent value="platforms" className="space-y-6">
           <div className="grid gap-6 md:grid-cols-2">
-            <WixSettings onApiConnection={handleApiConnection} />
-            <ShopifySettings onApiConnection={handleApiConnection} />
+            <WixSettings 
+              wixSettings={wixSettings}
+              hfdSettings={hfdSettings}
+              wixAuthCode={wixAuthCode}
+              isStartingWixIntegration={isStartingWixIntegration}
+              isCompletingWixIntegration={isCompletingWixIntegration}
+              isTestingWix={isTestingWix}
+              onUrlChange={handleWixUrlChange}
+              onStartIntegration={handleStartWixIntegration}
+              onCompleteIntegration={handleCompleteWixIntegration}
+              onOpenWixAppInstall={handleOpenWixAppInstall}
+              onTestConnection={handleTestWixConnection}
+              onCreateShipment={handleCreateShipment}
+            />
+            <ShopifySettings />
           </div>
         </TabsContent>
 
         <TabsContent value="shipping" className="space-y-6">
-          <HfdSettings />
+          <HfdSettings 
+            hfdSettings={hfdSettings}
+            onSettingsChange={handleHfdSettingsChange}
+            onSave={handleHfdSave}
+            onTest={handleHfdTest}
+            isTesting={isTestingHfd}
+          />
         </TabsContent>
 
         <TabsContent value="import" className="space-y-6">
