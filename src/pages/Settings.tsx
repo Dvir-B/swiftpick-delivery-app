@@ -14,24 +14,28 @@ import {
   getWixAppInstallUrl,
   completeWixIntegration
 } from "@/utils/wixIntegration";
-import { HfdSettings, testHfdConnection, createHfdShipment } from "@/utils/hfdIntegration";
+import { testHfdConnection, createHfdShipment } from "@/utils/hfdIntegration";
 import WixOrdersList from "@/components/WixOrdersList";
+import { saveHfdSettings, getHfdSettings, saveWixCredentials, getWixCredentials } from "@/services/database";
+import { HfdSettings as HfdSettingsType } from "@/lib/supabase";
+import { supabase } from "@/lib/supabase";
 
 const Settings = () => {
   const { toast } = useToast();
   const navigate = useNavigate();
-  const [hfdSettings, setHfdSettings] = useState<HfdSettings>({
-    clientNumber: "",
+  const [user, setUser] = useState(null);
+  const [hfdSettings, setHfdSettings] = useState<Omit<HfdSettingsType, 'id' | 'user_id' | 'created_at' | 'updated_at'>>({
+    client_number: "",
     token: "",
-    shipmentTypeCode: "",
-    cargoTypeHaloch: "",
+    shipment_type_code: "",
+    cargo_type_haloch: "",
   });
 
   const [wixSettings, setWixSettings] = useState<WixCredentials>({
-    siteUrl: "",
-    apiKey: "",
-    refreshToken: "",
-    isConnected: false
+    site_url: "",
+    api_key: "",
+    refresh_token: "",
+    is_connected: false
   });
 
   const [isTestingHfd, setIsTestingHfd] = useState(false);
@@ -39,26 +43,74 @@ const Settings = () => {
   const [isTestingWix, setIsTestingWix] = useState(false);
   const [wixAuthCode, setWixAuthCode] = useState("");
   const [isCompletingWixIntegration, setIsCompletingWixIntegration] = useState(false);
+  const [loading, setLoading] = useState(true);
 
-  // Load saved settings on component mount
+  // Check authentication and load settings
   useEffect(() => {
-    const savedHfdSettings = localStorage.getItem('hfd_settings');
-    if (savedHfdSettings) {
-      setHfdSettings(JSON.parse(savedHfdSettings));
-    }
-    
-    const savedWixSettings = localStorage.getItem('wix_settings');
-    if (savedWixSettings) {
-      setWixSettings(JSON.parse(savedWixSettings));
-    }
+    const checkAuth = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        toast({
+          title: "נדרש חיבור למערכת",
+          description: "יש להתחבר כדי לגשת להגדרות",
+          variant: "destructive"
+        });
+        navigate('/login'); // Assuming you have a login page
+        return;
+      }
+      setUser(user);
+      await loadSettings();
+    };
+
+    checkAuth();
   }, []);
+
+  // Load settings from database
+  const loadSettings = async () => {
+    try {
+      setLoading(true);
+      
+      // Load HFD settings
+      const hfdData = await getHfdSettings();
+      if (hfdData) {
+        setHfdSettings({
+          client_number: hfdData.client_number,
+          token: hfdData.token,
+          shipment_type_code: hfdData.shipment_type_code,
+          cargo_type_haloch: hfdData.cargo_type_haloch,
+        });
+      }
+
+      // Load Wix credentials
+      const wixData = await getWixCredentials();
+      if (wixData) {
+        setWixSettings({
+          site_url: wixData.site_url,
+          api_key: wixData.api_key || "",
+          refresh_token: wixData.refresh_token || "",
+          is_connected: wixData.is_connected,
+          app_id: wixData.app_id,
+          access_token: wixData.access_token
+        });
+      }
+    } catch (error) {
+      console.error('Error loading settings:', error);
+      toast({
+        title: "שגיאה בטעינת הגדרות",
+        description: "לא ניתן לטעון את ההגדרות מבסיס הנתונים",
+        variant: "destructive"
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
 
   // Check for auth code in URL for Wix app installation callback
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
     const authCode = urlParams.get('code');
     
-    if (authCode && wixSettings.appId && !wixSettings.isConnected) {
+    if (authCode && wixSettings.app_id && !wixSettings.is_connected) {
       setWixAuthCode(authCode);
       // Clear URL parameters without refreshing the page
       window.history.replaceState({}, document.title, window.location.pathname);
@@ -89,13 +141,21 @@ const Settings = () => {
     }));
   };
 
-  const handleSaveHfdSettings = () => {
-    // כאן ניתן להוסיף בדיקות תקינות לשדות
-    localStorage.setItem('hfd_settings', JSON.stringify(hfdSettings));
-    toast({
-      title: "הגדרות HFD נשמרו בהצלחה",
-      description: "הגדרות חברת HFD נשמרו במערכת",
-    });
+  const handleSaveHfdSettings = async () => {
+    try {
+      await saveHfdSettings(hfdSettings);
+      toast({
+        title: "הגדרות HFD נשמרו בהצלחה",
+        description: "הגדרות חברת HFD נשמרו בבסיס הנתונים",
+      });
+    } catch (error) {
+      console.error('Error saving HFD settings:', error);
+      toast({
+        title: "שגיאה בשמירת הגדרות",
+        description: "לא ניתן לשמור את הגדרות HFD",
+        variant: "destructive"
+      });
+    }
   };
 
   const handleTestHfdConnection = async () => {
@@ -121,16 +181,25 @@ const Settings = () => {
   const handleWixUrlChange = (value: string) => {
     setWixSettings(prev => ({
       ...prev,
-      siteUrl: value
+      site_url: value
     }));
   };
 
   const handleStartWixIntegration = async () => {
     setIsStartingWixIntegration(true);
     try {
-      const credentials = await startWixIntegration(wixSettings.siteUrl);
+      const credentials = await startWixIntegration(wixSettings.site_url);
       setWixSettings(credentials);
-      localStorage.setItem('wix_settings', JSON.stringify(credentials));
+      
+      // Save to database instead of localStorage
+      await saveWixCredentials({
+        site_url: credentials.siteUrl,
+        app_id: credentials.appId,
+        api_key: credentials.apiKey,
+        refresh_token: credentials.refreshToken,
+        is_connected: credentials.isConnected
+      });
+      
       toast({
         title: "תהליך אינטגרציה התחיל",
         description: "כעת יש להתקין את האפליקציה בחנות Wix שלך",
@@ -159,8 +228,18 @@ const Settings = () => {
     setIsCompletingWixIntegration(true);
     try {
       const updatedCredentials = await completeWixIntegration(wixSettings, wixAuthCode);
+      
+      // Save to database instead of localStorage
+      await saveWixCredentials({
+        site_url: updatedCredentials.siteUrl,
+        app_id: updatedCredentials.appId,
+        api_key: updatedCredentials.apiKey,
+        refresh_token: updatedCredentials.refreshToken,
+        access_token: updatedCredentials.accessToken,
+        is_connected: updatedCredentials.isConnected
+      });
+      
       setWixSettings(updatedCredentials);
-      localStorage.setItem('wix_settings', JSON.stringify(updatedCredentials));
       toast({
         title: "חיבור Wix הושלם בהצלחה",
         description: "אפליקציית Wix מחוברת כעת למערכת",
@@ -178,10 +257,10 @@ const Settings = () => {
   };
 
   const openWixAppInstall = () => {
-    if (!wixSettings.appId) return;
+    if (!wixSettings.app_id) return;
     
     const redirectUrl = `${window.location.origin}${window.location.pathname}`;
-    const installUrl = getWixAppInstallUrl(wixSettings.appId, redirectUrl);
+    const installUrl = getWixAppInstallUrl(wixSettings.app_id, redirectUrl);
     window.open(installUrl, '_blank');
   };
 
@@ -221,6 +300,16 @@ const Settings = () => {
     }
   };
 
+  if (loading) {
+    return (
+      <div className="container mx-auto py-8">
+        <div className="flex items-center justify-center">
+          <p>טוען הגדרות...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="container mx-auto py-8 space-y-8">
       <div className="flex items-center space-x-4">
@@ -256,8 +345,8 @@ const Settings = () => {
                   <Label>מספר לקוח (Client Number)</Label>
                   <Input 
                     placeholder="לדוגמה: 3399" 
-                    value={hfdSettings.clientNumber}
-                    onChange={(e) => handleHfdSettingsChange('clientNumber', e.target.value)}
+                    value={hfdSettings.client_number}
+                    onChange={(e) => handleHfdSettingsChange('client_number', e.target.value)}
                   />
                   
                   <Label>טוקן גישה (API Token)</Label>
@@ -271,15 +360,15 @@ const Settings = () => {
                   <Label>קוד סוג משלוח (Shipment Type Code)</Label>
                   <Input 
                     placeholder="לדוגמה: 35" 
-                    value={hfdSettings.shipmentTypeCode}
-                    onChange={(e) => handleHfdSettingsChange('shipmentTypeCode', e.target.value)}
+                    value={hfdSettings.shipment_type_code}
+                    onChange={(e) => handleHfdSettingsChange('shipment_type_code', e.target.value)}
                   />
                   
                   <Label>קוד סוג מטען (Cargo Type Haloch)</Label>
                   <Input 
                     placeholder="לדוגמה: 10" 
-                    value={hfdSettings.cargoTypeHaloch}
-                    onChange={(e) => handleHfdSettingsChange('cargoTypeHaloch', e.target.value)}
+                    value={hfdSettings.cargo_type_haloch}
+                    onChange={(e) => handleHfdSettingsChange('cargo_type_haloch', e.target.value)}
                   />
                   
                   <div className="pt-4 flex items-center justify-between">
@@ -294,7 +383,7 @@ const Settings = () => {
                     <Button 
                       variant="outline"
                       onClick={handleTestHfdConnection}
-                      disabled={isTestingHfd || !hfdSettings.clientNumber || !hfdSettings.token}
+                      disabled={isTestingHfd || !hfdSettings.client_number || !hfdSettings.token}
                       className="flex items-center"
                     >
                       {isTestingHfd ? (
@@ -352,12 +441,12 @@ const Settings = () => {
                   <Input 
                     placeholder="לדוגמה: mysite.wixsite.com/mystore" 
                     className="mb-4"
-                    value={wixSettings.siteUrl}
+                    value={wixSettings.site_url}
                     onChange={(e) => handleWixUrlChange(e.target.value)}
-                    disabled={!!wixSettings.appId}
+                    disabled={!!wixSettings.app_id}
                   />
                   
-                  {!wixSettings.appId ? (
+                  {!wixSettings.app_id ? (
                     <>
                       <Button 
                         onClick={() => window.open('https://www.wix.com/account/sites', '_blank')}
@@ -369,13 +458,13 @@ const Settings = () => {
                       </Button>
                       <Button 
                         onClick={handleStartWixIntegration}
-                        disabled={isStartingWixIntegration || !wixSettings.siteUrl}
+                        disabled={isStartingWixIntegration || !wixSettings.site_url}
                         className="w-full"
                       >
                         {isStartingWixIntegration ? "מתחיל תהליך..." : "התחל תהליך חיבור"}
                       </Button>
                     </>
-                  ) : wixSettings.isConnected ? (
+                  ) : wixSettings.is_connected ? (
                     <div className="bg-green-50 p-4 rounded-lg mb-4 flex items-center">
                       <Check className="h-5 w-5 text-green-600 mr-2" />
                       <p className="text-sm text-green-800">
@@ -412,7 +501,7 @@ const Settings = () => {
                     </div>
                   )}
                   
-                  {wixSettings.isConnected && (
+                  {wixSettings.is_connected && (
                     <Button 
                       onClick={handleTestWixConnection}
                       variant="outline"
@@ -424,7 +513,7 @@ const Settings = () => {
                   )}
                 </div>
 
-                {wixSettings.isConnected && (
+                {wixSettings.is_connected && (
                   <div className="mt-8">
                     <WixOrdersList 
                       credentials={wixSettings}
