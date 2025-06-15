@@ -3,6 +3,7 @@ import { Badge } from "@/components/ui/badge";
 import { Search, Eye, Trash2, Send, ArrowLeft } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { getOrders, softDeleteOrder, updateOrderStatus, getHfdSettings } from "@/services/database";
@@ -30,6 +31,7 @@ export function OrdersTable() {
   const [searchTerm, setSearchTerm] = useState("");
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selectedOrders, setSelectedOrders] = useState<string[]>([]);
 
   useEffect(() => {
     loadOrders();
@@ -149,6 +151,78 @@ export function OrdersTable() {
     }
   };
 
+  const handleBulkSendToShipping = async () => {
+    const allSelectedOrders = orders.filter(o => selectedOrders.includes(o.id!));
+    const ordersToSend = allSelectedOrders.filter(o => o.status === 'pending' || o.status === 'processed');
+    const skippedCount = allSelectedOrders.length - ordersToSend.length;
+
+    if (ordersToSend.length === 0) {
+      if (allSelectedOrders.length > 0) {
+        toast({
+            title: "אין הזמנות לשליחה",
+            description: `כל ${allSelectedOrders.length} ההזמנות שנבחרו אינן בסטטוס המאפשר שליחה.`,
+            variant: "default"
+        });
+      } else {
+        toast({
+            title: "לא נבחרו הזמנות",
+            description: "יש לבחור הזמנות לשליחה.",
+            variant: "destructive"
+        });
+      }
+      setSelectedOrders([]);
+      return;
+    }
+
+    const hfdSettings = await getHfdSettings();
+    if (!hfdSettings) {
+      toast({
+        title: "שגיאה",
+        description: "לא נמצאו הגדרות HFD. אנא הגדר תחילה את פרטי ההתחברות ל-HFD",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    toast({ description: `מתחיל שליחה של ${ordersToSend.length} הזמנות...` });
+
+    let successCount = 0;
+    let errorCount = 0;
+    const errorMessages: string[] = [];
+
+    for (const order of ordersToSend) {
+      try {
+        const shipmentData = convertOrderToHfdShipment(order, hfdSettings);
+        const result = await createHfdShipment(shipmentData);
+        await updateOrderStatus(order.id!, "shipped");
+        console.log(`Order ${order.order_number} sent successfully. HFD shipment: ${result.shipmentNumber}`);
+        successCount++;
+      } catch (error: any) {
+        console.error(`Error sending order ${order.order_number}:`, error);
+        errorCount++;
+        errorMessages.push(`הזמנה ${order.order_number}: ${error.message}`);
+      }
+    }
+
+    await loadOrders();
+    setSelectedOrders([]);
+
+    let summaryMessage = `${successCount} הזמנות נשלחו בהצלחה.`;
+    if (errorCount > 0) {
+      summaryMessage += ` ${errorCount} נכשלו.`;
+    }
+    if (skippedCount > 0) {
+      summaryMessage += ` ${skippedCount} הזמנות דולגו (בסטטוס לא מתאים).`;
+    }
+
+    toast({
+      title: "שליחה למשלוח הושלמה",
+      description: summaryMessage,
+      variant: errorCount > 0 ? "destructive" : "default",
+      duration: 9000
+    });
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -160,14 +234,22 @@ export function OrdersTable() {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between mb-4">
-        <Button
-          variant="outline"
-          onClick={handleGoBack}
-          className="flex items-center gap-2"
-        >
-          <ArrowLeft className="w-4 h-4" />
-          חזור
-        </Button>
+        <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              onClick={handleGoBack}
+              className="flex items-center gap-2"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              חזור
+            </Button>
+            {selectedOrders.length > 0 && (
+                <Button onClick={handleBulkSendToShipping}>
+                  <Send className="w-4 h-4 mr-2" />
+                  שלח למשלוח ({selectedOrders.length})
+                </Button>
+            )}
+        </div>
         
         <div className="flex items-center space-x-2">
           <Search className="w-5 h-5 text-gray-500" />
@@ -184,6 +266,16 @@ export function OrdersTable() {
         <Table>
           <TableHeader>
             <TableRow>
+              <TableHead className="w-[50px]">
+                <Checkbox
+                  id="select-all"
+                  checked={filteredOrders.length > 0 && selectedOrders.length === filteredOrders.length}
+                  onCheckedChange={(checked) => {
+                    setSelectedOrders(checked ? filteredOrders.map(o => o.id!) : []);
+                  }}
+                  aria-label="בחר הכל"
+                />
+              </TableHead>
               <TableHead className="text-right">מספר הזמנה</TableHead>
               <TableHead className="text-right">לקוח</TableHead>
               <TableHead className="text-right">אימייל</TableHead>
@@ -197,13 +289,26 @@ export function OrdersTable() {
           <TableBody>
             {filteredOrders.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={8} className="text-center py-8 text-gray-500">
+                <TableCell colSpan={9} className="text-center py-8 text-gray-500">
                   לא נמצאו הזמנות
                 </TableCell>
               </TableRow>
             ) : (
               filteredOrders.map((order) => (
-                <TableRow key={order.id} className="cursor-pointer hover:bg-gray-50">
+                <TableRow key={order.id} data-state={selectedOrders.includes(order.id!) ? "selected" : ""}>
+                  <TableCell>
+                    <Checkbox
+                      checked={selectedOrders.includes(order.id!)}
+                      onCheckedChange={(checked) => {
+                        setSelectedOrders(prev => 
+                          checked
+                            ? [...prev, order.id!]
+                            : prev.filter(id => id !== order.id!)
+                        );
+                      }}
+                      aria-label="בחר שורה"
+                    />
+                  </TableCell>
                   <TableCell className="font-medium">{order.order_number}</TableCell>
                   <TableCell>{order.customer_name || 'לא זמין'}</TableCell>
                   <TableCell>{order.customer_email || 'לא זמין'}</TableCell>
