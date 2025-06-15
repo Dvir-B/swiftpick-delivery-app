@@ -1,4 +1,5 @@
-import { supabase, HfdSettings, WixCredentials, Order, Shipment, OrderLog } from '@/lib/supabase';
+
+import { supabase, HfdSettings, WixCredentials, Order, Shipment, OrderLog, Picker, ShippingCarrier, Warehouse, Batch } from '@/lib/supabase';
 
 // HFD Settings functions
 export const saveHfdSettings = async (settings: Omit<HfdSettings, 'id' | 'user_id' | 'created_at' | 'updated_at'>) => {
@@ -225,6 +226,137 @@ export const logOrderActivity = async (activity: Omit<OrderLog, 'id' | 'user_id'
     console.error('Error logging order activity:', error);
     // We don't want to throw an error here, as logging is a secondary concern.
   }
+};
+
+// Picker functions
+export const getPickers = async (): Promise<Picker[]> => {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('User not authenticated');
+
+  const { data, error } = await supabase
+    .from('pickers')
+    .select('*')
+    .eq('user_id', user.id)
+    .eq('is_active', true)
+    .order('name');
+
+  if (error) throw error;
+  return data || [];
+};
+
+export const savePicker = async (picker: Omit<Picker, 'id' | 'user_id' | 'created_at' | 'updated_at'>) => {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('User not authenticated');
+
+  const { data, error } = await supabase
+    .from('pickers')
+    .insert({
+      ...picker,
+      user_id: user.id
+    })
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data;
+};
+
+// Shipping Carriers functions
+export const getShippingCarriers = async (): Promise<ShippingCarrier[]> => {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('User not authenticated');
+
+  const { data, error } = await supabase
+    .from('shipping_carriers')
+    .select('*')
+    .eq('user_id', user.id)
+    .eq('is_active', true)
+    .order('name');
+
+  if (error) throw error;
+  return data || [];
+};
+
+export const saveShippingCarrier = async (carrier: Omit<ShippingCarrier, 'id' | 'user_id' | 'created_at' | 'updated_at'>) => {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('User not authenticated');
+
+  const { data, error } = await supabase
+    .from('shipping_carriers')
+    .insert({
+      ...carrier,
+      user_id: user.id
+    })
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data;
+};
+
+// Warehouses functions
+export const getWarehouses = async (): Promise<Warehouse[]> => {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('User not authenticated');
+
+  const { data, error } = await supabase
+    .from('warehouses')
+    .select('*')
+    .eq('user_id', user.id)
+    .eq('is_active', true)
+    .order('name');
+
+  if (error) throw error;
+  return data || [];
+};
+
+export const saveWarehouse = async (warehouse: Omit<Warehouse, 'id' | 'user_id' | 'created_at' | 'updated_at'>) => {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('User not authenticated');
+
+  const { data, error } = await supabase
+    .from('warehouses')
+    .insert({
+      ...warehouse,
+      user_id: user.id
+    })
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data;
+};
+
+// Batches functions
+export const getBatches = async (): Promise<Batch[]> => {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('User not authenticated');
+
+  const { data, error } = await supabase
+    .from('batches')
+    .select('*')
+    .eq('user_id', user.id)
+    .order('created_at', { ascending: false });
+
+  if (error) throw error;
+  return data || [];
+};
+
+export const saveBatch = async (batch: Omit<Batch, 'id' | 'user_id' | 'created_at' | 'updated_at'>) => {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('User not authenticated');
+
+  const { data, error } = await supabase
+    .from('batches')
+    .insert({
+      ...batch,
+      user_id: user.id
+    })
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data;
 };
 
 // Shipments functions

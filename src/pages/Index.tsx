@@ -1,7 +1,8 @@
+
 import { DashboardStats } from "@/components/DashboardStats";
 import { OrdersTable } from "@/components/OrdersTable";
 import { Button } from "@/components/ui/button";
-import { Settings as SettingsIcon } from "lucide-react";
+import { Settings as SettingsIcon, Workflow } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
 const Index = () => {
@@ -12,6 +13,14 @@ const Index = () => {
       <div className="flex justify-between items-center">
         <h1 className="text-4xl font-bold text-primary">לוח בקרה</h1>
         <div className="flex items-center gap-4">
+          <Button
+            variant="outline"
+            onClick={() => navigate("/pdq")}
+            className="flex items-center gap-2 bg-blue-50 hover:bg-blue-100 text-blue-700 border-blue-200"
+          >
+            <Workflow className="w-4 h-4" />
+            PDQ - אמת, הקצה, מלא
+          </Button>
           <Button
             variant="outline"
             onClick={() => navigate("/settings")}
