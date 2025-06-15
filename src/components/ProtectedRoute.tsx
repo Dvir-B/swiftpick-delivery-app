@@ -1,5 +1,5 @@
 
-import { useEffect, useState, ReactNode } from 'react';
+import React, { useEffect, useState, ReactNode } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useNavigate } from 'react-router-dom';
 import { Session } from '@supabase/supabase-js';

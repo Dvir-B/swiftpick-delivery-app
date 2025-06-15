@@ -1,3 +1,4 @@
+
 export { supabase } from '@/integrations/supabase/client';
 
 // Database types
@@ -48,7 +49,8 @@ export interface Order {
   total_amount?: number;
   currency?: string;
   weight?: number;
-  status: 'pending' | 'processed' | 'shipped' | 'delivered' | 'error';
+  status: 'pending' | 'processed' | 'shipped' | 'delivered' | 'error' | 'in_process';
+  tracking_number?: string;
   order_date?: string;
   created_at?: string;
   updated_at?: string;
