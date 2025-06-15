@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -46,16 +46,12 @@ const Settings = () => {
   const [isCompletingWixIntegration, setIsCompletingWixIntegration] = useState(false);
   const [isTestingWix, setIsTestingWix] = useState(false);
 
-  // Webhook settings state
-  const [webhookUrl, setWebhookUrl] = useState("");
-  const [webhookSaved, setWebhookSaved] = useState(false);
-  const [webhookSaving, setWebhookSaving] = useState(false);
-  const [webhookStatus, setWebhookStatus] = useState<null | "success" | "error">(null);
+  // Webhook settings are now static
+  const webhookUrl = "https://pmcapndeqbbqgnigipvk.supabase.co/functions/v1/wix-orders-webhook";
   const webhookInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     loadSettings();
-    loadWebhookSettings();
   }, []);
 
   const loadSettings = async () => {
@@ -83,42 +79,7 @@ const Settings = () => {
     }
   };
 
-  const loadWebhookSettings = async () => {
-    try {
-      const settings = await getWebhookSettings();
-      if (settings?.webhook_url) setWebhookUrl(settings.webhook_url);
-    } catch (err) {
-      // no-op for now
-    }
-  };
-
-  const handleWebhookUrlChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setWebhookUrl(e.target.value);
-    setWebhookSaved(false);
-    setWebhookStatus(null);
-  };
-
-  const handleSaveWebhook = async () => {
-    setWebhookSaving(true);
-    try {
-      await saveWebhookSettings(webhookUrl);
-      setWebhookSaved(true);
-      setWebhookStatus("success");
-      toast({
-        title: "ה-Webhook נשמר",
-        description: "הכתובת נשמרה בהצלחה",
-      });
-    } catch (error) {
-      setWebhookStatus("error");
-      toast({
-        title: "שגיאה בשמירה",
-        description: "אירעה שגיאה בשמירת כתובת ה-webhook",
-        variant: "destructive",
-      });
-    } finally {
-      setWebhookSaving(false);
-    }
-  };
+  // Removed webhook settings handlers as they are no longer needed
 
   // HFD Settings handlers
   const handleHfdSettingsChange = (field: string, value: string) => {
@@ -204,17 +165,17 @@ const Settings = () => {
         apiKey: wixSettings.api_key || '',
         refreshToken: wixSettings.refresh_token || '',
         isConnected: wixSettings.is_connected,
-        appId: wixSettings.app_id
+        appId: wixSettings.app_id || ''
       };
       
       const updatedCredentials = await completeWixIntegration(integrationCredentials, wixAuthCode);
       const savedCredentials = await saveWixCredentials({
         site_url: updatedCredentials.siteUrl,
-        appId: updatedCredentials.appId,
-        apiKey: updatedCredentials.apiKey,
-        refreshToken: updatedCredentials.refreshToken,
+        app_id: updatedCredentials.appId,
+        api_key: updatedCredentials.apiKey,
+        refresh_token: updatedCredentials.refreshToken,
         access_token: '',
-        isConnected: updatedCredentials.isConnected
+        is_connected: updatedCredentials.isConnected
       });
       setWixSettings(savedCredentials);
       setWixAuthCode('');
@@ -474,9 +435,8 @@ const Settings = () => {
                       ref={webhookInputRef}
                       type="text"
                       value={webhookUrl}
-                      onChange={handleWebhookUrlChange}
-                      placeholder="https://example.com/api/webhook/wix"
-                      className="w-full border px-3 py-2 rounded"
+                      placeholder="https://pmcapndeqbbqgnigipvk.supabase.co/functions/v1/wix-orders-webhook"
+                      className="w-full border px-3 py-2 rounded bg-gray-100"
                       dir="ltr"
                       readOnly
                     />
@@ -489,29 +449,16 @@ const Settings = () => {
                       העתק
                     </Button>
                   </div>
-                  <Button
-                    className="mt-3"
-                    onClick={handleSaveWebhook}
-                    disabled={webhookSaving || !webhookUrl}
-                  >
-                    {webhookSaving ? "שומר..." : "שמור כתובת Webhook"}
-                  </Button>
-                  {webhookSaved && webhookStatus === "success" && (
-                    <p className="text-green-600 mt-2">הכתובת נשמרה בהצלחה!</p>
-                  )}
-                  {webhookStatus === "error" && (
-                    <p className="text-red-600 mt-2">שגיאה! נסה שוב.</p>
-                  )}
                 </li>
                 <li>
-                  <span>היכנס לפאנל הניהול של Wix וגש להגדרות Webhooks.</span>
+                  <span>היכנס לפאנל הניהול של Wix וגש ל-Automations ולאחר מכן ל-Webhooks.</span>
                 </li>
                 <li>
-                  <span>הוסף את הכתובת הזאת (Webhook URL) כדי ש-Wix תשלח הזמנות חדשות ישירות למערכת.</span>
+                  <span>צור Webhook חדש, הדבק את הכתובת שהעתקת, ובחר באירוע "Order Created" כדי שהמערכת תקבל הזמנות חדשות באופן אוטומטי.</span>
                 </li>
               </ol>
               <div className="mt-4 p-3 bg-blue-50 rounded-lg text-blue-800 text-sm">
-                ודא שאתה שומר את כתובת ה-Webhook כאן ומגדיר אותה ב-Wix כדי להתחיל ביבוא אוטומטי של הזמנות.
+                ודא שהגדרת את ה-Webhook ב-Wix כדי להתחיל ביבוא אוטומטי של הזמנות.
               </div>
             </CardContent>
           </Card>
