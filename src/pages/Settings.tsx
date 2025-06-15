@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -10,7 +9,7 @@ import { processOrdersFile } from "@/services/fileProcessing";
 import { useToast } from "@/hooks/use-toast";
 import { getHfdSettings, saveHfdSettings, getWixCredentials, saveWixCredentials } from "@/services/database";
 import { startWixIntegration, completeWixIntegration, testWixConnection } from "@/utils/wixIntegration";
-import { testHfdConnection, createHfdShipment } from "@/utils/hfdIntegration";
+import { testHfdConnection, convertOrderToHfdShipment, createHfdShipment } from "@/utils/hfdIntegration";
 import { WixCredentials, HfdSettings as HfdSettingsType } from "@/lib/supabase";
 
 const Settings = () => {
@@ -122,7 +121,14 @@ const Settings = () => {
     setIsStartingWixIntegration(true);
     try {
       const credentials = await startWixIntegration(wixSettings.site_url);
-      const updatedCredentials = await saveWixCredentials(credentials);
+      const updatedCredentials = await saveWixCredentials({
+        site_url: credentials.siteUrl,
+        app_id: credentials.appId,
+        api_key: credentials.apiKey,
+        refresh_token: credentials.refreshToken,
+        access_token: '',
+        is_connected: credentials.isConnected
+      });
       setWixSettings(updatedCredentials);
       
       toast({
@@ -143,8 +149,24 @@ const Settings = () => {
   const handleCompleteWixIntegration = async () => {
     setIsCompletingWixIntegration(true);
     try {
-      const updatedCredentials = await completeWixIntegration(wixSettings, wixAuthCode);
-      const savedCredentials = await saveWixCredentials(updatedCredentials);
+      // Convert WixCredentials to wixIntegration format
+      const integrationCredentials = {
+        siteUrl: wixSettings.site_url,
+        apiKey: wixSettings.api_key || '',
+        refreshToken: wixSettings.refresh_token || '',
+        isConnected: wixSettings.is_connected,
+        appId: wixSettings.app_id
+      };
+      
+      const updatedCredentials = await completeWixIntegration(integrationCredentials, wixAuthCode);
+      const savedCredentials = await saveWixCredentials({
+        site_url: updatedCredentials.siteUrl,
+        app_id: updatedCredentials.appId,
+        api_key: updatedCredentials.apiKey,
+        refresh_token: updatedCredentials.refreshToken,
+        access_token: '',
+        is_connected: updatedCredentials.isConnected
+      });
       setWixSettings(savedCredentials);
       setWixAuthCode('');
       
@@ -175,15 +197,16 @@ const Settings = () => {
   const handleTestWixConnection = async () => {
     setIsTestingWix(true);
     try {
-      const result = await testWixConnection({
-        site_url: wixSettings.site_url,
-        api_key: wixSettings.api_key || '',
-        refresh_token: wixSettings.refresh_token || '',
-        is_connected: wixSettings.is_connected,
-        app_id: wixSettings.app_id || '',
-        user_id: wixSettings.user_id,
-        access_token: wixSettings.access_token || ''
-      });
+      // Convert to wixIntegration format
+      const integrationCredentials = {
+        siteUrl: wixSettings.site_url,
+        apiKey: wixSettings.api_key || '',
+        refreshToken: wixSettings.refresh_token || '',
+        isConnected: wixSettings.is_connected,
+        appId: wixSettings.app_id
+      };
+      
+      const result = await testWixConnection(integrationCredentials);
       
       toast({
         title: result.success ? "חיבור תקין" : "שגיאה בחיבור",
@@ -201,14 +224,25 @@ const Settings = () => {
     }
   };
 
-  const handleCreateShipment = async (shipmentData: any) => {
+  const handleCreateShipment = async (orderData: any) => {
     try {
-      const result = await createHfdShipment(shipmentData, hfdSettings);
+      console.log('Creating shipment for order:', orderData);
+      console.log('Using HFD settings:', hfdSettings);
+      
+      // Convert order data to HFD shipment format
+      const shipmentData = convertOrderToHfdShipment(orderData, hfdSettings);
+      console.log('Converted shipment data:', shipmentData);
+      
+      // Create shipment in HFD
+      const result = await createHfdShipment(shipmentData);
+      console.log('HFD shipment result:', result);
+      
       toast({
         title: "משלוח נוצר בהצלחה",
-        description: `משלוח מספר ${result.shipmentNumber} נוצר`,
+        description: `משלוח מספר ${result.shipmentNumber} נוצר ב-HFD`,
       });
     } catch (error) {
+      console.error('Error creating shipment:', error);
       toast({
         title: "שגיאה ביצירת משלוח",
         description: error instanceof Error ? error.message : "שגיאה לא ידועה",

@@ -158,24 +158,65 @@ export const getShippingLabelUrl = (shipmentNumber: number) => {
  * Convert order data to HFD shipment format
  */
 export const convertOrderToHfdShipment = (orderData: any, hfdSettings: HfdSettings): HfdShipmentRequest => {
+  console.log('Converting order to HFD shipment:', { orderData, hfdSettings });
+  
+  // Handle different order data formats (from Wix, CSV import, or manual entry)
+  let recipientName = '';
+  let recipientAddress = '';
+  let recipientCity = '';
+  let recipientZip = '';
+  let recipientPhone = '';
+  let orderNumber = '';
+  let weight = 500; // Default weight
+  
+  // Handle Wix order format
+  if (orderData.customerInfo) {
+    recipientName = `${orderData.customerInfo.firstName || ''} ${orderData.customerInfo.lastName || ''}`.trim();
+    recipientPhone = orderData.customerInfo.phone || '';
+    
+    if (orderData.shippingInfo?.shipmentDetails?.address) {
+      const addr = orderData.shippingInfo.shipmentDetails.address;
+      recipientAddress = addr.addressLine1 || '';
+      recipientCity = addr.city || '';
+      recipientZip = addr.postalCode || '';
+    }
+    
+    orderNumber = orderData.number || orderData.id || '';
+    weight = orderData.totals?.weight || 500;
+  }
+  // Handle database order format
+  else {
+    recipientName = orderData.customer_name || '';
+    recipientPhone = orderData.customer_phone || '';
+    
+    if (orderData.shipping_address) {
+      recipientAddress = orderData.shipping_address.address || orderData.shipping_address.addressLine1 || '';
+      recipientCity = orderData.shipping_address.city || '';
+      recipientZip = orderData.shipping_address.zipCode || orderData.shipping_address.postalCode || '';
+    }
+    
+    orderNumber = orderData.order_number || orderData.external_id || '';
+    weight = orderData.weight || 500;
+  }
+
   return {
     client_number: hfdSettings.client_number,
     token: hfdSettings.token,
     shipment_type_code: hfdSettings.shipment_type_code,
     cargo_type_haloch: hfdSettings.cargo_type_haloch,
-    reference_num_1: orderData.order_number || orderData.referenceNum1 || '',
-    reference_num_2: orderData.external_id || orderData.referenceNum2 || '',
+    reference_num_1: orderNumber,
+    reference_num_2: orderData.external_id || orderData.id || '',
     sender_name: "החנות שלי", // This should come from business settings
     sender_address: "כתובת השולח", // This should come from business settings
     sender_city: "תל אביב", // This should come from business settings
     sender_zip: "1234567", // This should come from business settings
     sender_phone: "03-1234567", // This should come from business settings
-    recipient_name: orderData.customer_name || `${orderData.customerInfo?.firstName || ''} ${orderData.customerInfo?.lastName || ''}`.trim(),
-    recipient_address: orderData.shipping_address?.addressLine1 || orderData.shippingInfo?.shipmentDetails?.address?.addressLine1 || '',
-    recipient_city: orderData.shipping_address?.city || orderData.shippingInfo?.shipmentDetails?.address?.city || '',
-    recipient_zip: orderData.shipping_address?.zipCode || orderData.shippingInfo?.shipmentDetails?.address?.zipCode || '',
-    recipient_phone: orderData.customer_phone || orderData.customerInfo?.phone || '',
-    weight: orderData.weight || orderData.totals?.weight || 0,
+    recipient_name: recipientName,
+    recipient_address: recipientAddress,
+    recipient_city: recipientCity,
+    recipient_zip: recipientZip,
+    recipient_phone: recipientPhone,
+    weight: weight,
     pieces: 1,
     remarks: orderData.notes || orderData.remarks || ''
   };

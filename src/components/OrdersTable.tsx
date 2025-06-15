@@ -1,12 +1,13 @@
 
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Package, Search, Eye, Trash2, RotateCcw } from "lucide-react";
+import { Package, Search, Eye, Trash2, Send } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { getOrders, softDeleteOrder, restoreOrder, updateOrderStatus } from "@/services/database";
+import { getOrders, softDeleteOrder, updateOrderStatus, getHfdSettings } from "@/services/database";
+import { convertOrderToHfdShipment, createHfdShipment } from "@/utils/hfdIntegration";
 import { Order } from "@/lib/supabase";
 import { useToast } from "@/hooks/use-toast";
 
@@ -103,6 +104,48 @@ export function OrdersTable() {
     }
   };
 
+  const handleSendToShipping = async (order: Order) => {
+    try {
+      // Get HFD settings
+      const hfdSettings = await getHfdSettings();
+      if (!hfdSettings) {
+        toast({
+          title: "שגיאה",
+          description: "לא נמצאו הגדרות HFD. אנא הגדר תחילה את פרטי ההתחברות ל-HFD",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      console.log('Sending order to HFD:', order);
+      console.log('Using HFD settings:', hfdSettings);
+
+      // Convert order to HFD shipment format
+      const shipmentData = convertOrderToHfdShipment(order, hfdSettings);
+      console.log('Converted shipment data:', shipmentData);
+
+      // Create shipment in HFD
+      const result = await createHfdShipment(shipmentData);
+      console.log('HFD shipment result:', result);
+
+      // Update order status to shipped
+      await updateOrderStatus(order.id!, "shipped");
+      await loadOrders();
+
+      toast({
+        title: "הזמנה נשלחה בהצלחה",
+        description: `משלוח מספר ${result.shipmentNumber} נוצר ב-HFD`,
+      });
+    } catch (error) {
+      console.error('Error sending order to shipping:', error);
+      toast({
+        title: "שגיאה בשליחה למשלוח",
+        description: error instanceof Error ? error.message : "שגיאה לא ידועה",
+        variant: "destructive",
+      });
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -165,22 +208,44 @@ export function OrdersTable() {
                   <TableCell>
                     <div className="flex items-center space-x-2">
                       {order.status === "pending" && (
-                        <Button 
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleStartPicking(order.id!)}
-                        >
-                          התחל ליקוט
-                        </Button>
+                        <>
+                          <Button 
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleStartPicking(order.id!)}
+                          >
+                            התחל ליקוט
+                          </Button>
+                          <Button 
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleSendToShipping(order)}
+                            className="bg-green-50 hover:bg-green-100"
+                          >
+                            <Send className="w-4 h-4 mr-1" />
+                            שלח למשלוח
+                          </Button>
+                        </>
                       )}
                       {order.status === "processed" && (
-                        <Button 
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleUpdateStatus(order.id!, "shipped")}
-                        >
-                          סמן כנשלח
-                        </Button>
+                        <>
+                          <Button 
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleUpdateStatus(order.id!, "shipped")}
+                          >
+                            סמן כנשלח
+                          </Button>
+                          <Button 
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleSendToShipping(order)}
+                            className="bg-green-50 hover:bg-green-100"
+                          >
+                            <Send className="w-4 h-4 mr-1" />
+                            שלח למשלוח
+                          </Button>
+                        </>
                       )}
                       <Button
                         variant="ghost"
