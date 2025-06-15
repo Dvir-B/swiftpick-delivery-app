@@ -1,4 +1,4 @@
-import { supabase, HfdSettings, WixCredentials, Order, Shipment, OrderLog } from '@/lib/supabase';
+import { supabase, HfdSettings, WixCredentials, Order, Shipment, OrderLog, WebhookSettings } from '@/lib/supabase';
 
 // HFD Settings functions
 export const saveHfdSettings = async (settings: Omit<HfdSettings, 'id' | 'user_id' | 'created_at' | 'updated_at'>) => {
@@ -326,6 +326,66 @@ export const updateOrder = async (orderId: string, updates: Partial<Order>) => {
     .eq('id', orderId)
     .eq('user_id', user.id)
     .is('deleted_at', null)
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data;
+};
+
+// Webhook Settings functions
+export const getWebhookSettings = async (): Promise<WebhookSettings | null> => {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error("User not authenticated");
+
+  const { data, error } = await supabase
+    .from("webhook_settings")
+    .select("*")
+    .eq("user_id", user.id)
+    .eq("platform", "wix")
+    .eq("is_active", true)
+    .maybeSingle();
+
+  if (error) throw error;
+  return data;
+};
+
+export const saveWebhookSettings = async (webhookUrl: string): Promise<WebhookSettings> => {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error("User not authenticated");
+
+  // Try to update if exists, otherwise insert
+  const { data: existing } = await supabase
+    .from("webhook_settings")
+    .select("id")
+    .eq("user_id", user.id)
+    .eq("platform", "wix")
+    .eq("is_active", true)
+    .maybeSingle();
+
+  if (existing) {
+    const { data, error } = await supabase
+      .from("webhook_settings")
+      .update({
+        webhook_url: webhookUrl,
+        updated_at: new Date().toISOString()
+      })
+      .eq("id", existing.id)
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data;
+  }
+
+  const { data, error } = await supabase
+    .from("webhook_settings")
+    .insert({
+      user_id: user.id,
+      platform: "wix",
+      webhook_url: webhookUrl,
+      is_active: true
+    })
     .select()
     .single();
 

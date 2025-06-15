@@ -378,6 +378,36 @@ export type Database = {
         }
         Relationships: []
       }
+      webhook_settings: {
+        Row: {
+          created_at: string
+          id: string
+          is_active: boolean
+          platform: string
+          updated_at: string
+          user_id: string
+          webhook_url: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          platform?: string
+          updated_at?: string
+          user_id: string
+          webhook_url: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          platform?: string
+          updated_at?: string
+          user_id?: string
+          webhook_url?: string
+        }
+        Relationships: []
+      }
       wix_credentials: {
         Row: {
           access_token: string | null

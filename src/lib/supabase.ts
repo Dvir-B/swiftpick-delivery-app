@@ -1,4 +1,3 @@
-
 export { supabase } from '@/integrations/supabase/client';
 
 // Database types
@@ -73,6 +72,16 @@ export interface Shipment {
   tracking_number?: string;
   shipment_data?: any;
   status: 'created' | 'sent_to_hfd' | 'in_transit' | 'delivered' | 'failed';
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface WebhookSettings {
+  id?: string;
+  user_id: string;
+  platform: string;
+  webhook_url: string;
+  is_active: boolean;
   created_at?: string;
   updated_at?: string;
 }

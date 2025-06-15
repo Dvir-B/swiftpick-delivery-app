@@ -8,12 +8,13 @@ import ShopifySettings from "@/components/settings/ShopifySettings";
 import FileUpload from "@/components/settings/FileUpload";
 import { processOrdersFile } from "@/services/fileProcessing";
 import { useToast } from "@/hooks/use-toast";
-import { getHfdSettings, saveHfdSettings, getWixCredentials, saveWixCredentials } from "@/services/database";
+import { getHfdSettings, saveHfdSettings, getWixCredentials, saveWixCredentials, getWebhookSettings, saveWebhookSettings } from "@/services/database";
 import { startWixIntegration, completeWixIntegration, testWixConnection } from "@/utils/wixIntegration";
 import { testHfdConnection, convertOrderToHfdShipment, createHfdShipment } from "@/utils/hfdIntegration";
 import { WixCredentials, HfdSettings as HfdSettingsType } from "@/lib/supabase";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft } from "lucide-react";
+import { useRef } from "react";
 
 const Settings = () => {
   const navigate = useNavigate();
@@ -45,9 +46,16 @@ const Settings = () => {
   const [isCompletingWixIntegration, setIsCompletingWixIntegration] = useState(false);
   const [isTestingWix, setIsTestingWix] = useState(false);
 
-  // Load settings on component mount
+  // Webhook settings state
+  const [webhookUrl, setWebhookUrl] = useState("");
+  const [webhookSaved, setWebhookSaved] = useState(false);
+  const [webhookSaving, setWebhookSaving] = useState(false);
+  const [webhookStatus, setWebhookStatus] = useState<null | "success" | "error">(null);
+  const webhookInputRef = useRef<HTMLInputElement>(null);
+
   useEffect(() => {
     loadSettings();
+    loadWebhookSettings();
   }, []);
 
   const loadSettings = async () => {
@@ -72,6 +80,43 @@ const Settings = () => {
       }
     } catch (error) {
       console.error('Error loading settings:', error);
+    }
+  };
+
+  const loadWebhookSettings = async () => {
+    try {
+      const settings = await getWebhookSettings();
+      if (settings?.webhook_url) setWebhookUrl(settings.webhook_url);
+    } catch (err) {
+      // no-op for now
+    }
+  };
+
+  const handleWebhookUrlChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setWebhookUrl(e.target.value);
+    setWebhookSaved(false);
+    setWebhookStatus(null);
+  };
+
+  const handleSaveWebhook = async () => {
+    setWebhookSaving(true);
+    try {
+      await saveWebhookSettings(webhookUrl);
+      setWebhookSaved(true);
+      setWebhookStatus("success");
+      toast({
+        title: "ה-Webhook נשמר",
+        description: "הכתובת נשמרה בהצלחה",
+      });
+    } catch (error) {
+      setWebhookStatus("error");
+      toast({
+        title: "שגיאה בשמירה",
+        description: "אירעה שגיאה בשמירת כתובת ה-webhook",
+        variant: "destructive",
+      });
+    } finally {
+      setWebhookSaving(false);
     }
   };
 
@@ -165,11 +210,11 @@ const Settings = () => {
       const updatedCredentials = await completeWixIntegration(integrationCredentials, wixAuthCode);
       const savedCredentials = await saveWixCredentials({
         site_url: updatedCredentials.siteUrl,
-        app_id: updatedCredentials.appId,
-        api_key: updatedCredentials.apiKey,
-        refresh_token: updatedCredentials.refreshToken,
+        appId: updatedCredentials.appId,
+        apiKey: updatedCredentials.apiKey,
+        refreshToken: updatedCredentials.refreshToken,
         access_token: '',
-        is_connected: updatedCredentials.isConnected
+        isConnected: updatedCredentials.isConnected
       });
       setWixSettings(savedCredentials);
       setWixAuthCode('');
@@ -320,10 +365,11 @@ const Settings = () => {
       </div>
 
       <Tabs defaultValue="platforms" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-3">
+        <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="platforms">פלטפורמות</TabsTrigger>
           <TabsTrigger value="shipping">משלוחים</TabsTrigger>
           <TabsTrigger value="import">יבוא הזמנות</TabsTrigger>
+          <TabsTrigger value="webhook">Webhook Wix</TabsTrigger>
         </TabsList>
 
         <TabsContent value="platforms" className="space-y-6">
@@ -393,6 +439,69 @@ const Settings = () => {
                     <strong>טיפ:</strong> המערכת תזהה אוטומטית את העמודות הרלוונטיות מהקובץ שלך ותמפה אותן לשדות הנכונים.
                   </p>
                 </div>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+        <TabsContent value="webhook" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>חיבור Webhook ל-Wix</CardTitle>
+              <CardDescription>
+                יש להשתמש ב-Webhook כדי לייבא הזמנות חדשות מהחנות שלך ב-Wix. בצע את השלבים הבאים:
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <ol className="list-decimal pl-6 space-y-2 text-right">
+                <li>
+                  <span>העתק את כתובת ה-Webhook שלך</span>
+                  <div className="mt-2 flex gap-2 flex-col sm:flex-row">
+                    <input
+                      ref={webhookInputRef}
+                      type="text"
+                      value={webhookUrl}
+                      onChange={handleWebhookUrlChange}
+                      placeholder="https://example.com/api/webhook/wix"
+                      className="w-full border px-3 py-2 rounded"
+                      dir="ltr"
+                    />
+                    <Button
+                      onClick={() => {
+                        if (webhookInputRef.current) {
+                          webhookInputRef.current.select();
+                          document.execCommand("copy");
+                          toast({ title: "הועתק", description: "הכתובת הועתקה ללוח." });
+                        }
+                      }}
+                      type="button"
+                      variant="outline"
+                    >
+                      העתק
+                    </Button>
+                  </div>
+                  <Button
+                    className="mt-3"
+                    onClick={handleSaveWebhook}
+                    disabled={webhookSaving || !webhookUrl}
+                  >
+                    {webhookSaving ? "שומר..." : "שמור כתובת Webhook"}
+                  </Button>
+                  {webhookSaved && webhookStatus === "success" && (
+                    <p className="text-green-600 mt-2">הכתובת נשמרה בהצלחה!</p>
+                  )}
+                  {webhookStatus === "error" && (
+                    <p className="text-red-600 mt-2">שגיאה! נסה שוב.</p>
+                  )}
+                </li>
+                <li>
+                  <span>היכנס לפאנל הניהול של Wix וגש להגדרות Webhooks.</span>
+                </li>
+                <li>
+                  <span>הוסף את הכתובת הזאת (Webhook URL) כדי ש-Wix תשלח הזמנות חדשות ישירות למערכת.</span>
+                </li>
+              </ol>
+              <div className="mt-4 p-3 bg-blue-50 rounded-lg text-blue-800 text-sm">
+                ודא שאתה שומר את כתובת ה-Webhook כאן ומגדיר אותה ב-Wix כדי להתחיל ביבוא אוטומטי של הזמנות.
               </div>
             </CardContent>
           </Card>
