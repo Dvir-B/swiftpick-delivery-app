@@ -281,3 +281,54 @@ export const getShipments = async (): Promise<Shipment[]> => {
   if (error) throw error;
   return data || [];
 };
+
+export const getOrderById = async (orderId: string): Promise<Order | null> => {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('User not authenticated');
+
+  const { data, error } = await supabase
+    .from('orders')
+    .select('*')
+    .eq('id', orderId)
+    .eq('user_id', user.id)
+    .is('deleted_at', null)
+    .single();
+
+  if (error && error.code !== 'PGRST116') throw error;
+  return data;
+};
+
+export const getOrderLogs = async (orderId: string): Promise<OrderLog[]> => {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('User not authenticated');
+
+  const { data, error } = await supabase
+    .from('order_logs')
+    .select('*')
+    .eq('order_id', orderId)
+    .eq('user_id', user.id)
+    .order('created_at', { ascending: false });
+
+  if (error) throw error;
+  return data || [];
+};
+
+export const updateOrder = async (orderId: string, updates: Partial<Order>) => {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('User not authenticated');
+
+  const { data, error } = await supabase
+    .from('orders')
+    .update({
+      ...updates,
+      updated_at: new Date().toISOString()
+    })
+    .eq('id', orderId)
+    .eq('user_id', user.id)
+    .is('deleted_at', null)
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data;
+};

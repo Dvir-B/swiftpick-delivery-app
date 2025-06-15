@@ -4,6 +4,7 @@ import Index from "./pages/Index";
 import Picking from "./pages/Picking";
 import Settings from "./pages/Settings";
 import Login from "./pages/Login";
+import OrderDetails from "./pages/OrderDetails";
 import ProtectedRoute from "./components/ProtectedRoute";
 
 function App() {
@@ -14,6 +15,11 @@ function App() {
         <Route path="/" element={
           <ProtectedRoute>
             <Index />
+          </ProtectedRoute>
+        } />
+        <Route path="/order/:orderId" element={
+          <ProtectedRoute>
+            <OrderDetails />
           </ProtectedRoute>
         } />
         <Route path="/picking/:orderId" element={

@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { getOrders, softDeleteOrder, updateOrderStatus, getHfdSettings, logOrderActivity } from "@/services/database";
@@ -50,8 +49,7 @@ export const useOrders = () => {
   };
 
   const handleViewOrder = (orderId: string) => {
-    // Navigate to order details page when implemented
-    console.log('View order:', orderId);
+    navigate(`/order/${orderId}`);
   };
 
   const handleDeleteOrder = async (orderId: string) => {
