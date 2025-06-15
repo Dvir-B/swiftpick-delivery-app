@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -14,7 +15,6 @@ import { testHfdConnection, convertOrderToHfdShipment, createHfdShipment } from 
 import { WixCredentials, HfdSettings as HfdSettingsType } from "@/lib/supabase";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft } from "lucide-react";
-import { useRef } from "react";
 
 const Settings = () => {
   const navigate = useNavigate();
