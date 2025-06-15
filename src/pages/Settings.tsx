@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import HfdSettings from "@/components/settings/HfdSettings";
@@ -11,8 +12,11 @@ import { getHfdSettings, saveHfdSettings, getWixCredentials, saveWixCredentials 
 import { startWixIntegration, completeWixIntegration, testWixConnection } from "@/utils/wixIntegration";
 import { testHfdConnection, convertOrderToHfdShipment, createHfdShipment } from "@/utils/hfdIntegration";
 import { WixCredentials, HfdSettings as HfdSettingsType } from "@/lib/supabase";
+import { Button } from "@/components/ui/button";
+import { ArrowLeft } from "lucide-react";
 
 const Settings = () => {
+  const navigate = useNavigate();
   const { toast } = useToast();
   const [uploading, setUploading] = useState(false);
   
@@ -294,12 +298,25 @@ const Settings = () => {
       event.target.value = '';
     }
   };
+  const handleGoBack = () => {
+    navigate(-1);
+  };
 
   return (
     <div className="container mx-auto p-6 max-w-4xl">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">הגדרות</h1>
-        <p className="text-gray-600">נהל את החיבורים שלך למערכות השונות</p>
+      <div className="flex justify-between items-start mb-8">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">הגדרות</h1>
+          <p className="text-gray-600">נהל את החיבורים שלך למערכות השונות</p>
+        </div>
+        <Button
+          variant="outline"
+          onClick={handleGoBack}
+          className="flex items-center gap-2"
+        >
+          <ArrowLeft className="w-4 h-4" />
+          חזור
+        </Button>
       </div>
 
       <Tabs defaultValue="platforms" className="space-y-6">

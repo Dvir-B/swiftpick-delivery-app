@@ -1,8 +1,5 @@
-
+import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-
-// HFD API endpoint
-const HFD_API_BASE_URL = "https://test.hfd.co.il/RunCom.WebAPI/api/v1";
 
 export interface HfdSettings {
   client_number: string;
@@ -47,6 +44,22 @@ export interface HfdShipmentResponse {
   pickUpCode: number;
 }
 
+const invokeHfdProxy = async (endpoint: string, payload: any) => {
+  const { data, error } = await supabase.functions.invoke('hfd-proxy', {
+    body: { endpoint, payload },
+  });
+
+  if (error) {
+    throw new Error(`Supabase function invocation error: ${error.message}`);
+  }
+
+  if (data.error) {
+    throw new Error(data.error);
+  }
+
+  return data;
+}
+
 /**
  * Create a shipment in HFD system
  */
@@ -55,24 +68,14 @@ export const createHfdShipment = async (shipmentData: HfdShipmentRequest): Promi
     throw new Error("Missing HFD credentials");
   }
 
-  console.log("Creating HFD shipment with data:", shipmentData);
+  console.log("Creating HFD shipment via proxy with data:", shipmentData);
   
   try {
-    const response = await fetch(`${HFD_API_BASE_URL}/shipments`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${shipmentData.token}`,
-      },
-      body: JSON.stringify(shipmentData),
-    });
+    const result = await invokeHfdProxy('shipments', shipmentData);
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`HFD API Error: ${response.status} - ${errorText}`);
+    if (result.errorCode || result.errorMessage) {
+      throw new Error(result.errorMessage || `HFD Error: ${result.errorCode}`);
     }
-
-    const result = await response.json();
     
     // Map the API response to our interface
     return {
@@ -106,27 +109,12 @@ export const testHfdConnection = async (settings: HfdSettings) => {
   }
   
   try {
-    const response = await fetch(`${HFD_API_BASE_URL}/test`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${settings.token}`,
-      },
-      body: JSON.stringify({
-        client_number: settings.client_number,
-        token: settings.token
-      }),
-    });
+    const payload = {
+      client_number: settings.client_number,
+      token: settings.token
+    };
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      return {
-        success: false,
-        message: `שגיאה בבדיקת החיבור: ${response.status} - ${errorText}`
-      };
-    }
-
-    const result = await response.json();
+    const result = await invokeHfdProxy('test', payload);
     
     if (result.success === false || result.error_code) {
       return {
