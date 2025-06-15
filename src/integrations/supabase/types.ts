@@ -9,53 +9,6 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
-      batches: {
-        Row: {
-          batch_number: string
-          carrier_id: string | null
-          created_at: string
-          fulfilled_count: number | null
-          id: string
-          pickup_date: string | null
-          status: string | null
-          total_count: number | null
-          updated_at: string
-          user_id: string
-        }
-        Insert: {
-          batch_number: string
-          carrier_id?: string | null
-          created_at?: string
-          fulfilled_count?: number | null
-          id?: string
-          pickup_date?: string | null
-          status?: string | null
-          total_count?: number | null
-          updated_at?: string
-          user_id: string
-        }
-        Update: {
-          batch_number?: string
-          carrier_id?: string | null
-          created_at?: string
-          fulfilled_count?: number | null
-          id?: string
-          pickup_date?: string | null
-          status?: string | null
-          total_count?: number | null
-          updated_at?: string
-          user_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "batches_carrier_id_fkey"
-            columns: ["carrier_id"]
-            isOneToOne: false
-            referencedRelation: "shipping_carriers"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       hfd_settings: {
         Row: {
           cargo_type_haloch: string
@@ -138,19 +91,14 @@ export type Database = {
           deleted_by: string | null
           external_id: string
           id: string
-          label_url: string | null
           order_date: string | null
           order_number: string
-          picker_id: string | null
           platform: Database["public"]["Enums"]["order_platform"]
           shipping_address: Json | null
-          shipping_carrier_id: string | null
           status: Database["public"]["Enums"]["order_status"]
           total_amount: number | null
-          tracking_number: string | null
           updated_at: string
           user_id: string
-          warehouse_id: string | null
           weight: number | null
         }
         Insert: {
@@ -163,19 +111,14 @@ export type Database = {
           deleted_by?: string | null
           external_id: string
           id?: string
-          label_url?: string | null
           order_date?: string | null
           order_number: string
-          picker_id?: string | null
           platform: Database["public"]["Enums"]["order_platform"]
           shipping_address?: Json | null
-          shipping_carrier_id?: string | null
           status: Database["public"]["Enums"]["order_status"]
           total_amount?: number | null
-          tracking_number?: string | null
           updated_at?: string
           user_id: string
-          warehouse_id?: string | null
           weight?: number | null
         }
         Update: {
@@ -188,53 +131,15 @@ export type Database = {
           deleted_by?: string | null
           external_id?: string
           id?: string
-          label_url?: string | null
           order_date?: string | null
           order_number?: string
-          picker_id?: string | null
           platform?: Database["public"]["Enums"]["order_platform"]
           shipping_address?: Json | null
-          shipping_carrier_id?: string | null
           status?: Database["public"]["Enums"]["order_status"]
           total_amount?: number | null
-          tracking_number?: string | null
           updated_at?: string
           user_id?: string
-          warehouse_id?: string | null
           weight?: number | null
-        }
-        Relationships: []
-      }
-      pickers: {
-        Row: {
-          created_at: string
-          email: string | null
-          id: string
-          is_active: boolean | null
-          name: string
-          phone: string | null
-          updated_at: string
-          user_id: string
-        }
-        Insert: {
-          created_at?: string
-          email?: string | null
-          id?: string
-          is_active?: boolean | null
-          name: string
-          phone?: string | null
-          updated_at?: string
-          user_id: string
-        }
-        Update: {
-          created_at?: string
-          email?: string | null
-          id?: string
-          is_active?: boolean | null
-          name?: string
-          phone?: string | null
-          updated_at?: string
-          user_id?: string
         }
         Relationships: []
       }
@@ -309,75 +214,6 @@ export type Database = {
           },
         ]
       }
-      shipping_carriers: {
-        Row: {
-          api_endpoint: string | null
-          api_key: string | null
-          carrier_code: string | null
-          created_at: string
-          id: string
-          is_active: boolean | null
-          name: string
-          updated_at: string
-          user_id: string
-        }
-        Insert: {
-          api_endpoint?: string | null
-          api_key?: string | null
-          carrier_code?: string | null
-          created_at?: string
-          id?: string
-          is_active?: boolean | null
-          name: string
-          updated_at?: string
-          user_id: string
-        }
-        Update: {
-          api_endpoint?: string | null
-          api_key?: string | null
-          carrier_code?: string | null
-          created_at?: string
-          id?: string
-          is_active?: boolean | null
-          name?: string
-          updated_at?: string
-          user_id?: string
-        }
-        Relationships: []
-      }
-      warehouses: {
-        Row: {
-          address: string | null
-          city: string | null
-          created_at: string
-          id: string
-          is_active: boolean | null
-          name: string
-          updated_at: string
-          user_id: string
-        }
-        Insert: {
-          address?: string | null
-          city?: string | null
-          created_at?: string
-          id?: string
-          is_active?: boolean | null
-          name: string
-          updated_at?: string
-          user_id: string
-        }
-        Update: {
-          address?: string | null
-          city?: string | null
-          created_at?: string
-          id?: string
-          is_active?: boolean | null
-          name?: string
-          updated_at?: string
-          user_id?: string
-        }
-        Relationships: []
-      }
       wix_credentials: {
         Row: {
           access_token: string | null
@@ -426,13 +262,7 @@ export type Database = {
     }
     Enums: {
       order_platform: "wix" | "shopify" | "manual"
-      order_status:
-        | "pending"
-        | "processed"
-        | "shipped"
-        | "delivered"
-        | "error"
-        | "in_process"
+      order_status: "pending" | "processed" | "shipped" | "delivered" | "error"
       shipment_status:
         | "created"
         | "sent_to_hfd"
@@ -555,14 +385,7 @@ export const Constants = {
   public: {
     Enums: {
       order_platform: ["wix", "shopify", "manual"],
-      order_status: [
-        "pending",
-        "processed",
-        "shipped",
-        "delivered",
-        "error",
-        "in_process",
-      ],
+      order_status: ["pending", "processed", "shipped", "delivered", "error"],
       shipment_status: [
         "created",
         "sent_to_hfd",

@@ -1,4 +1,3 @@
-
 export { supabase } from '@/integrations/supabase/client';
 
 // Database types
@@ -36,53 +35,6 @@ export interface WixCredentials {
   updated_at?: string;
 }
 
-export interface Picker {
-  id?: string;
-  user_id: string;
-  name: string;
-  email?: string;
-  phone?: string;
-  is_active?: boolean;
-  created_at?: string;
-  updated_at?: string;
-}
-
-export interface ShippingCarrier {
-  id?: string;
-  user_id: string;
-  name: string;
-  api_endpoint?: string;
-  api_key?: string;
-  carrier_code?: string;
-  is_active?: boolean;
-  created_at?: string;
-  updated_at?: string;
-}
-
-export interface Warehouse {
-  id?: string;
-  user_id: string;
-  name: string;
-  address?: string;
-  city?: string;
-  is_active?: boolean;
-  created_at?: string;
-  updated_at?: string;
-}
-
-export interface Batch {
-  id?: string;
-  user_id: string;
-  batch_number: string;
-  pickup_date?: string;
-  carrier_id?: string;
-  fulfilled_count?: number;
-  total_count?: number;
-  status?: string;
-  created_at?: string;
-  updated_at?: string;
-}
-
 export interface Order {
   id?: string;
   user_id: string;
@@ -96,13 +48,8 @@ export interface Order {
   total_amount?: number;
   currency?: string;
   weight?: number;
-  status: 'pending' | 'processed' | 'shipped' | 'delivered' | 'error' | 'in_process';
+  status: 'pending' | 'processed' | 'shipped' | 'delivered' | 'error';
   order_date?: string;
-  picker_id?: string;
-  shipping_carrier_id?: string;
-  warehouse_id?: string;
-  tracking_number?: string;
-  label_url?: string;
   created_at?: string;
   updated_at?: string;
 }
