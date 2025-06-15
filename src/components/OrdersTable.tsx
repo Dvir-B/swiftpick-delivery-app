@@ -1,7 +1,6 @@
-
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Package, Search, Eye, Trash2, Send } from "lucide-react";
+import { Search, Eye, Trash2, Send, ArrowLeft } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useState, useEffect } from "react";
@@ -58,6 +57,10 @@ export function OrdersTable() {
     order.order_number.includes(searchTerm) ||
     order.customer_email?.toLowerCase().includes(searchTerm.toLowerCase())
   );
+
+  const handleGoBack = () => {
+    navigate(-1);
+  };
 
   const handleStartPicking = (orderId: string) => {
     navigate(`/picking/${orderId}`);
@@ -156,14 +159,25 @@ export function OrdersTable() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center space-x-2 mb-4">
-        <Search className="w-5 h-5 text-gray-500" />
-        <Input
-          placeholder="חיפוש לפי שם לקוח, מספר הזמנה או אימייל..."
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          className="max-w-sm"
-        />
+      <div className="flex items-center justify-between mb-4">
+        <Button
+          variant="outline"
+          onClick={handleGoBack}
+          className="flex items-center gap-2"
+        >
+          <ArrowLeft className="w-4 h-4" />
+          חזור
+        </Button>
+        
+        <div className="flex items-center space-x-2">
+          <Search className="w-5 h-5 text-gray-500" />
+          <Input
+            placeholder="חיפוש לפי שם לקוח, מספר הזמנה או אימייל..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="max-w-sm"
+          />
+        </div>
       </div>
       
       <div className="border rounded-lg">
