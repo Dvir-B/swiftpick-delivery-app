@@ -1,7 +1,6 @@
-
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Search, Eye, Trash2, Send, ArrowLeft } from "lucide-react";
+import { Search, Eye, Trash2, Send, ArrowLeft, RefreshCw, Undo2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -385,6 +384,27 @@ export function OrdersTable() {
                           >
                             <Send className="w-4 h-4 mr-1" />
                             שלח למשלוח
+                          </Button>
+                        </>
+                      )}
+                      {order.status === 'error' && (
+                        <>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleSendToShipping(order)}
+                            className="text-orange-600 hover:text-orange-800 border-orange-200 hover:bg-orange-50"
+                          >
+                            <RefreshCw className="w-4 h-4 mr-1" />
+                            נסה לשלוח שוב
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleUpdateStatus(order.id!, 'pending')}
+                          >
+                            <Undo2 className="w-4 h-4 mr-1" />
+                            אפס סטטוס
                           </Button>
                         </>
                       )}
