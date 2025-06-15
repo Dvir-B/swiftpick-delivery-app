@@ -1,3 +1,4 @@
+
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Search, Eye, Trash2, Send, ArrowLeft } from "lucide-react";
@@ -6,16 +7,17 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { getOrders, softDeleteOrder, updateOrderStatus, getHfdSettings } from "@/services/database";
+import { getOrders, softDeleteOrder, updateOrderStatus, getHfdSettings, logOrderActivity } from "@/services/database";
 import { convertOrderToHfdShipment, createHfdShipment } from "@/utils/hfdIntegration";
 import { Order } from "@/lib/supabase";
 import { useToast } from "@/hooks/use-toast";
 
 const statusColors = {
-  pending: "bg-blue-100 text-blue-800",
-  processed: "bg-yellow-100 text-yellow-800", 
-  shipped: "bg-purple-100 text-purple-800",
-  delivered: "bg-green-100 text-green-800",
+  pending: "bg-gray-200 text-gray-800",
+  processed: "bg-yellow-200 text-yellow-800",
+  shipped: "bg-blue-200 text-blue-800",
+  delivered: "bg-green-200 text-green-800",
+  error: "bg-red-200 text-red-800",
 };
 
 const statusText = {
@@ -23,6 +25,7 @@ const statusText = {
   processed: "בטיפול", 
   shipped: "נשלחה",
   delivered: "נמסרה",
+  error: "שגיאה",
 };
 
 export function OrdersTable() {
@@ -76,6 +79,7 @@ export function OrdersTable() {
   const handleDeleteOrder = async (orderId: string) => {
     try {
       await softDeleteOrder(orderId);
+      await logOrderActivity({ order_id: orderId, activity_type: 'order_deleted' });
       await loadOrders(); // Refresh the orders list
       toast({
         title: "הזמנה נמחקה",
@@ -94,6 +98,7 @@ export function OrdersTable() {
   const handleUpdateStatus = async (orderId: string, newStatus: Order['status']) => {
     try {
       await updateOrderStatus(orderId, newStatus);
+      await logOrderActivity({ order_id: orderId, activity_type: 'status_updated', details: { newStatus } });
       await loadOrders(); // Refresh the orders list
       toast({
         title: "סטטוס עודכן",
@@ -135,6 +140,7 @@ export function OrdersTable() {
 
       // Update order status to shipped
       await updateOrderStatus(order.id!, "shipped");
+      await logOrderActivity({ order_id: order.id!, activity_type: 'shipment_created', details: { hfdShipmentNumber: result.shipmentNumber } });
       await loadOrders();
 
       toast({
@@ -143,6 +149,15 @@ export function OrdersTable() {
       });
     } catch (error) {
       console.error('Error sending order to shipping:', error);
+      if (order.id) {
+        await updateOrderStatus(order.id, 'error');
+        await logOrderActivity({
+          order_id: order.id,
+          activity_type: 'shipment_creation_failed',
+          details: { error: error instanceof Error ? error.message : String(error) }
+        });
+        await loadOrders();
+      }
       toast({
         title: "שגיאה בשליחה למשלוח",
         description: error instanceof Error ? error.message : "שגיאה לא ידועה",
@@ -195,10 +210,17 @@ export function OrdersTable() {
         const shipmentData = convertOrderToHfdShipment(order, hfdSettings);
         const result = await createHfdShipment(shipmentData);
         await updateOrderStatus(order.id!, "shipped");
+        await logOrderActivity({ order_id: order.id!, activity_type: 'shipment_created', details: { hfdShipmentNumber: result.shipmentNumber, context: 'bulk_send' } });
         console.log(`Order ${order.order_number} sent successfully. HFD shipment: ${result.shipmentNumber}`);
         successCount++;
       } catch (error: any) {
         console.error(`Error sending order ${order.order_number}:`, error);
+        await updateOrderStatus(order.id!, 'error');
+        await logOrderActivity({
+            order_id: order.id!,
+            activity_type: 'shipment_creation_failed',
+            details: { error: error.message, context: 'bulk_send' }
+        });
         errorCount++;
         errorMessages.push(`הזמנה ${order.order_number}: ${error.message}`);
       }
@@ -278,11 +300,11 @@ export function OrdersTable() {
               </TableHead>
               <TableHead className="text-right">מספר הזמנה</TableHead>
               <TableHead className="text-right">לקוח</TableHead>
-              <TableHead className="text-right">אימייל</TableHead>
-              <TableHead className="text-right">פלטפורמה</TableHead>
+              <TableHead className="text-right hidden md:table-cell">אימייל</TableHead>
+              <TableHead className="text-right hidden lg:table-cell">פלטפורמה</TableHead>
               <TableHead className="text-right">סטטוס</TableHead>
-              <TableHead className="text-right">תאריך הזמנה</TableHead>
-              <TableHead className="text-right">סכום</TableHead>
+              <TableHead className="text-right hidden lg:table-cell">תאריך הזמנה</TableHead>
+              <TableHead className="text-right hidden md:table-cell">סכום</TableHead>
               <TableHead className="text-right">פעולות</TableHead>
             </TableRow>
           </TableHeader>
@@ -311,17 +333,17 @@ export function OrdersTable() {
                   </TableCell>
                   <TableCell className="font-medium">{order.order_number}</TableCell>
                   <TableCell>{order.customer_name || 'לא זמין'}</TableCell>
-                  <TableCell>{order.customer_email || 'לא זמין'}</TableCell>
-                  <TableCell className="capitalize">{order.platform}</TableCell>
+                  <TableCell className="hidden md:table-cell">{order.customer_email || 'לא זמין'}</TableCell>
+                  <TableCell className="capitalize hidden lg:table-cell">{order.platform}</TableCell>
                   <TableCell>
                     <Badge className={statusColors[order.status]}>
                       {statusText[order.status]}
                     </Badge>
                   </TableCell>
-                  <TableCell>
+                  <TableCell className="hidden lg:table-cell">
                     {order.order_date ? new Date(order.order_date).toLocaleDateString("he-IL") : 'לא זמין'}
                   </TableCell>
-                  <TableCell>
+                  <TableCell className="hidden md:table-cell">
                     {order.total_amount ? `₪${order.total_amount}` : 'לא זמין'}
                   </TableCell>
                   <TableCell>

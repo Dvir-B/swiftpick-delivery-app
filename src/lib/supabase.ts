@@ -48,10 +48,19 @@ export interface Order {
   total_amount?: number;
   currency?: string;
   weight?: number;
-  status: 'pending' | 'processed' | 'shipped' | 'delivered';
+  status: 'pending' | 'processed' | 'shipped' | 'delivered' | 'error';
   order_date?: string;
   created_at?: string;
   updated_at?: string;
+}
+
+export interface OrderLog {
+  id?: string;
+  user_id: string;
+  order_id: string;
+  activity_type: string;
+  details?: any;
+  created_at?: string;
 }
 
 export interface Shipment {

@@ -45,6 +45,41 @@ export type Database = {
         }
         Relationships: []
       }
+      order_logs: {
+        Row: {
+          activity_type: string
+          created_at: string
+          details: Json | null
+          id: string
+          order_id: string
+          user_id: string
+        }
+        Insert: {
+          activity_type: string
+          created_at?: string
+          details?: Json | null
+          id?: string
+          order_id: string
+          user_id: string
+        }
+        Update: {
+          activity_type?: string
+          created_at?: string
+          details?: Json | null
+          id?: string
+          order_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "order_logs_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       orders: {
         Row: {
           created_at: string
@@ -227,7 +262,7 @@ export type Database = {
     }
     Enums: {
       order_platform: "wix" | "shopify" | "manual"
-      order_status: "pending" | "processed" | "shipped" | "delivered"
+      order_status: "pending" | "processed" | "shipped" | "delivered" | "error"
       shipment_status:
         | "created"
         | "sent_to_hfd"
@@ -350,7 +385,7 @@ export const Constants = {
   public: {
     Enums: {
       order_platform: ["wix", "shopify", "manual"],
-      order_status: ["pending", "processed", "shipped", "delivered"],
+      order_status: ["pending", "processed", "shipped", "delivered", "error"],
       shipment_status: [
         "created",
         "sent_to_hfd",

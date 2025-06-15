@@ -1,5 +1,4 @@
-
-import { supabase, HfdSettings, WixCredentials, Order, Shipment } from '@/lib/supabase';
+import { supabase, HfdSettings, WixCredentials, Order, Shipment, OrderLog } from '@/lib/supabase';
 
 // HFD Settings functions
 export const saveHfdSettings = async (settings: Omit<HfdSettings, 'id' | 'user_id' | 'created_at' | 'updated_at'>) => {
@@ -206,6 +205,26 @@ export const updateOrderStatus = async (orderId: string, status: Order['status']
 
   if (error) throw error;
   return data;
+};
+
+export const logOrderActivity = async (activity: Omit<OrderLog, 'id' | 'user_id' | 'created_at'>) => {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) {
+      console.error('User not authenticated for logging');
+      return;
+  };
+
+  const { error } = await supabase
+    .from('order_logs')
+    .insert({
+      ...activity,
+      user_id: user.id
+    });
+
+  if (error) {
+    console.error('Error logging order activity:', error);
+    // We don't want to throw an error here, as logging is a secondary concern.
+  }
 };
 
 // Shipments functions
