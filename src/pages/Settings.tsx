@@ -347,6 +347,20 @@ const Settings = () => {
     navigate(-1);
   };
 
+  const handleCopyWebhookUrl = async () => {
+    if (!webhookUrl) return;
+    try {
+      await navigator.clipboard.writeText(webhookUrl);
+      toast({ title: "הועתק", description: "הכתובת הועתקה ללוח." });
+    } catch (e) {
+      toast({
+        title: "שגיאה",
+        description: "לא ניתן להעתיק את הכתובת באופן אוטומטי, אנא העתק ידנית.",
+        variant: "destructive",
+      });
+    }
+  };
+
   return (
     <div className="container mx-auto p-6 max-w-4xl">
       <div className="flex justify-between items-start mb-8">
@@ -464,17 +478,13 @@ const Settings = () => {
                       placeholder="https://example.com/api/webhook/wix"
                       className="w-full border px-3 py-2 rounded"
                       dir="ltr"
+                      readOnly
                     />
                     <Button
-                      onClick={() => {
-                        if (webhookInputRef.current) {
-                          webhookInputRef.current.select();
-                          document.execCommand("copy");
-                          toast({ title: "הועתק", description: "הכתובת הועתקה ללוח." });
-                        }
-                      }}
+                      onClick={handleCopyWebhookUrl}
                       type="button"
                       variant="outline"
+                      disabled={!webhookUrl}
                     >
                       העתק
                     </Button>
