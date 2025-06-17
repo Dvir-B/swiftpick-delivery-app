@@ -1,5 +1,5 @@
+
 import { supabase } from "@/integrations/supabase/client";
-import { useToast } from "@/hooks/use-toast";
 
 export interface HfdSettings {
   client_number: string;
@@ -45,18 +45,24 @@ export interface HfdShipmentResponse {
 }
 
 const invokeHfdProxy = async (endpoint: string, payload: any) => {
+  console.log(`Invoking HFD proxy for endpoint: ${endpoint}`);
+  console.log('Payload:', JSON.stringify(payload, null, 2));
+
   const { data, error } = await supabase.functions.invoke('hfd-proxy', {
     body: { endpoint, payload },
   });
 
   if (error) {
-    throw new Error(`Supabase function invocation error: ${error.message}`);
+    console.error('Supabase function invocation error:', error);
+    throw new Error(`שגיאה בחיבור למערכת HFD: ${error.message}`);
   }
 
-  if (data.error) {
-    throw new Error(data.error);
+  if (data?.error) {
+    console.error('HFD API error:', data.error);
+    throw new Error(`שגיאה מ-HFD: ${data.error}`);
   }
 
+  console.log('HFD proxy response:', JSON.stringify(data, null, 2));
   return data;
 }
 
@@ -65,7 +71,12 @@ const invokeHfdProxy = async (endpoint: string, payload: any) => {
  */
 export const createHfdShipment = async (shipmentData: HfdShipmentRequest): Promise<HfdShipmentResponse> => {
   if (!shipmentData.client_number || !shipmentData.token) {
-    throw new Error("Missing HFD credentials");
+    throw new Error("חסרים פרטי התחברות ל-HFD");
+  }
+
+  // Validate required fields
+  if (!shipmentData.recipient_name || !shipmentData.recipient_address || !shipmentData.recipient_city) {
+    throw new Error("חסרים פרטי נמען חובה (שם, כתובת, עיר)");
   }
 
   console.log("Creating HFD shipment via proxy with data:", shipmentData);
@@ -73,13 +84,15 @@ export const createHfdShipment = async (shipmentData: HfdShipmentRequest): Promi
   try {
     const result = await invokeHfdProxy('shipments', shipmentData);
 
-    if (result.errorCode || result.errorMessage) {
-      throw new Error(result.errorMessage || `HFD Error: ${result.errorCode}`);
+    // Handle various response formats from HFD
+    if (result.errorCode || result.error_code || result.errorMessage || result.error_message) {
+      const errorMessage = result.errorMessage || result.error_message || `קוד שגיאה: ${result.errorCode || result.error_code}`;
+      throw new Error(errorMessage);
     }
     
     // Map the API response to our interface
-    return {
-      shipmentNumber: result.shipment_number || result.shipmentNumber,
+    const response: HfdShipmentResponse = {
+      shipmentNumber: result.shipment_number || result.shipmentNumber || 0,
       randNumber: result.rand_number || result.randNumber || '',
       referenceNumber1: result.reference_number_1 || result.referenceNumber1 || '',
       referenceNumber2: result.reference_number_2 || result.referenceNumber2 || '',
@@ -91,6 +104,13 @@ export const createHfdShipment = async (shipmentData: HfdShipmentRequest): Promi
       sortingCode: result.sorting_code || result.sortingCode || 0,
       pickUpCode: result.pickup_code || result.pickUpCode || 0
     };
+
+    // Validate that we got a shipment number
+    if (!response.shipmentNumber || response.shipmentNumber === 0) {
+      throw new Error("לא התקבל מספר משלוח מ-HFD");
+    }
+
+    return response;
   } catch (error) {
     console.error("Error creating HFD shipment:", error);
     throw error;
@@ -116,10 +136,10 @@ export const testHfdConnection = async (settings: HfdSettings) => {
 
     const result = await invokeHfdProxy('test', payload);
     
-    if (result.success === false || result.error_code) {
+    if (result.success === false || result.error_code || result.errorCode) {
       return {
         success: false,
-        message: result.error_message || result.message || "שגיאה לא ידועה בבדיקת החיבור"
+        message: result.error_message || result.errorMessage || result.message || "שגיאה לא ידועה בבדיקת החיבור"
       };
     }
     
@@ -148,7 +168,7 @@ export const getShippingLabelUrl = (shipmentNumber: number) => {
 export const convertOrderToHfdShipment = (orderData: any, hfdSettings: HfdSettings): HfdShipmentRequest => {
   console.log('Converting order to HFD shipment:', { orderData, hfdSettings });
   
-  // Handle different order data formats (from Wix, CSV import, or manual entry)
+  // Handle different order data formats
   let recipientName = '';
   let recipientAddress = '';
   let recipientCity = '';
@@ -158,15 +178,16 @@ export const convertOrderToHfdShipment = (orderData: any, hfdSettings: HfdSettin
   let weight = 500; // Default weight
   
   // Handle Wix order format
-  if (orderData.customerInfo) {
-    recipientName = `${orderData.customerInfo.firstName || ''} ${orderData.customerInfo.lastName || ''}`.trim();
-    recipientPhone = orderData.customerInfo.phone || '';
+  if (orderData.customerInfo || orderData.buyerInfo) {
+    const customerInfo = orderData.customerInfo || orderData.buyerInfo;
+    recipientName = `${customerInfo.firstName || ''} ${customerInfo.lastName || ''}`.trim();
+    recipientPhone = customerInfo.phone || '';
     
     if (orderData.shippingInfo?.shipmentDetails?.address) {
       const addr = orderData.shippingInfo.shipmentDetails.address;
-      recipientAddress = addr.addressLine1 || '';
+      recipientAddress = addr.addressLine || addr.addressLine1 || '';
       recipientCity = addr.city || '';
-      recipientZip = addr.postalCode || '';
+      recipientZip = addr.postalCode || addr.zipCode || '';
     }
     
     orderNumber = orderData.number || orderData.id || '';
@@ -187,6 +208,21 @@ export const convertOrderToHfdShipment = (orderData: any, hfdSettings: HfdSettin
     weight = orderData.weight || 500;
   }
 
+  // Clean up phone and zip code (remove quotes if present)
+  recipientPhone = recipientPhone.replace(/"/g, '');
+  recipientZip = recipientZip.replace(/"/g, '');
+
+  // Validate required fields
+  if (!recipientName) {
+    throw new Error("חסר שם נמען");
+  }
+  if (!recipientAddress) {
+    throw new Error("חסרה כתובת נמען");
+  }
+  if (!recipientCity) {
+    throw new Error("חסרה עיר נמען");
+  }
+
   return {
     client_number: hfdSettings.client_number,
     token: hfdSettings.token,
@@ -204,8 +240,27 @@ export const convertOrderToHfdShipment = (orderData: any, hfdSettings: HfdSettin
     recipient_city: recipientCity,
     recipient_zip: recipientZip,
     recipient_phone: recipientPhone,
-    weight: weight,
+    weight: Number(weight),
     pieces: 1,
-    remarks: orderData.notes || orderData.remarks || ''
+    remarks: orderData.notes || orderData.remarks || `הזמנה מ-${orderData.platform || 'המערכת'}: ${orderNumber}`
   };
+};
+
+/**
+ * Check shipment status
+ */
+export const checkShipmentStatus = async (shipmentNumber: number, hfdSettings: HfdSettings) => {
+  try {
+    const payload = {
+      client_number: hfdSettings.client_number,
+      token: hfdSettings.token,
+      shipment_number: shipmentNumber
+    };
+
+    const result = await invokeHfdProxy('shipments/status', payload);
+    return result;
+  } catch (error) {
+    console.error('Error checking shipment status:', error);
+    throw error;
+  }
 };

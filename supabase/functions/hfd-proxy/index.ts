@@ -15,31 +15,71 @@ serve(async (req) => {
       throw new Error('Missing endpoint or payload in request body');
     }
 
+    console.log(`HFD Proxy: Making request to ${endpoint} with payload:`, JSON.stringify(payload, null, 2));
+
     const url = `${HFD_API_BASE_URL}/${endpoint}`;
     
-    const hfdResponse = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(payload),
-    });
+    // Retry mechanism for network issues
+    let lastError;
+    const maxRetries = 3;
+    
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        console.log(`HFD Proxy: Attempt ${attempt} to ${url}`);
+        
+        const hfdResponse = await fetch(url, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'User-Agent': 'WixIntegration/1.0'
+          },
+          body: JSON.stringify(payload),
+        });
 
-    const responseData = await hfdResponse.json();
+        console.log(`HFD Proxy: Response status: ${hfdResponse.status}`);
+        
+        if (!hfdResponse.ok) {
+          const errorText = await hfdResponse.text();
+          console.error(`HFD API Error (${hfdResponse.status}):`, errorText);
+          
+          // Try to parse as JSON for better error message
+          let errorData;
+          try {
+            errorData = JSON.parse(errorText);
+          } catch {
+            errorData = { message: errorText };
+          }
+          
+          throw new Error(`HFD API Error (${hfdResponse.status}): ${errorData.message || errorText}`);
+        }
 
-    if (!hfdResponse.ok) {
-      const errorMessage = responseData.errorMessage || responseData.message || JSON.stringify(responseData);
-      throw new Error(`HFD API Error (${hfdResponse.status}): ${errorMessage}`);
+        const responseData = await hfdResponse.json();
+        console.log('HFD Proxy: Success response:', JSON.stringify(responseData, null, 2));
+
+        return new Response(JSON.stringify(responseData), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 200,
+        });
+
+      } catch (error) {
+        lastError = error;
+        console.error(`HFD Proxy: Attempt ${attempt} failed:`, error.message);
+        
+        if (attempt < maxRetries) {
+          // Wait before retry (exponential backoff)
+          await new Promise(resolve => setTimeout(resolve, Math.pow(2, attempt) * 1000));
+        }
+      }
     }
 
-    return new Response(JSON.stringify(responseData), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      status: 200,
-    });
+    throw lastError;
 
   } catch (error) {
-    console.error('HFD Proxy Error:', error.message);
-    return new Response(JSON.stringify({ error: error.message }), {
+    console.error('HFD Proxy Final Error:', error.message);
+    return new Response(JSON.stringify({ 
+      error: error.message,
+      timestamp: new Date().toISOString()
+    }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       status: 500,
     });
