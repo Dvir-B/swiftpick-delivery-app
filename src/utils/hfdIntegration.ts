@@ -44,26 +44,46 @@ export interface HfdShipmentResponse {
   pickUpCode: number;
 }
 
-const invokeHfdProxy = async (endpoint: string, payload: any) => {
+const invokeHfdProxy = async (endpoint: string, payload: any, retries: number = 3) => {
   console.log(`Invoking HFD proxy for endpoint: ${endpoint}`);
   console.log('Payload:', JSON.stringify(payload, null, 2));
 
-  const { data, error } = await supabase.functions.invoke('hfd-proxy', {
-    body: { endpoint, payload },
-  });
+  let lastError;
+  
+  for (let attempt = 1; attempt <= retries; attempt++) {
+    try {
+      console.log(`HFD Integration: Attempt ${attempt}/${retries}`);
+      
+      const { data, error } = await supabase.functions.invoke('hfd-proxy', {
+        body: { endpoint, payload },
+      });
 
-  if (error) {
-    console.error('Supabase function invocation error:', error);
-    throw new Error(`שגיאה בחיבור למערכת HFD: ${error.message}`);
+      if (error) {
+        console.error('Supabase function invocation error:', error);
+        throw new Error(`שגיאה בחיבור למערכת HFD: ${error.message}`);
+      }
+
+      if (data?.error) {
+        console.error('HFD API error:', data.error);
+        throw new Error(`שגיאה מ-HFD: ${data.error}`);
+      }
+
+      console.log('HFD proxy response:', JSON.stringify(data, null, 2));
+      return data;
+      
+    } catch (error) {
+      lastError = error;
+      console.error(`HFD Integration: Attempt ${attempt} failed:`, error.message);
+      
+      if (attempt < retries) {
+        const delay = 2000 * attempt; // 2s, 4s, 6s delays
+        console.log(`Waiting ${delay}ms before retry...`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+      }
+    }
   }
-
-  if (data?.error) {
-    console.error('HFD API error:', data.error);
-    throw new Error(`שגיאה מ-HFD: ${data.error}`);
-  }
-
-  console.log('HFD proxy response:', JSON.stringify(data, null, 2));
-  return data;
+  
+  throw lastError;
 }
 
 /**
@@ -134,7 +154,7 @@ export const testHfdConnection = async (settings: HfdSettings) => {
       token: settings.token
     };
 
-    const result = await invokeHfdProxy('test', payload);
+    const result = await invokeHfdProxy('test', payload, 2); // Less retries for test
     
     if (result.success === false || result.error_code || result.errorCode) {
       return {
@@ -162,9 +182,6 @@ export const getShippingLabelUrl = (shipmentNumber: number) => {
   return `https://test.hfd.co.il/RunCom.Server/Request.aspx?APPNAME=run&PRGNAME=ship_print_ws&ARGUMENTS=-N${shipmentNumber},-A,-A,-A,-A,-A,-A,-N,-A`;
 };
 
-/**
- * Convert order data to HFD shipment format
- */
 export const convertOrderToHfdShipment = (orderData: any, hfdSettings: HfdSettings): HfdShipmentRequest => {
   console.log('Converting order to HFD shipment:', { orderData, hfdSettings });
   
@@ -246,9 +263,6 @@ export const convertOrderToHfdShipment = (orderData: any, hfdSettings: HfdSettin
   };
 };
 
-/**
- * Check shipment status
- */
 export const checkShipmentStatus = async (shipmentNumber: number, hfdSettings: HfdSettings) => {
   try {
     const payload = {
