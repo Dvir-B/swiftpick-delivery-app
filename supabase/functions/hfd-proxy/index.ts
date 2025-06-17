@@ -18,55 +18,80 @@ serve(async (req) => {
     console.log(`HFD Proxy: Making request to ${endpoint} with payload:`, JSON.stringify(payload, null, 2));
 
     const url = `${HFD_API_BASE_URL}/${endpoint}`;
+    console.log(`HFD Proxy: Full URL: ${url}`);
     
     // Enhanced retry mechanism with better error handling
     let lastError;
-    const maxRetries = 5;
-    const baseDelay = 1000; // 1 second
+    const maxRetries = 3; // Reduced retries for faster feedback
+    const baseDelay = 2000; // 2 seconds
     
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
         console.log(`HFD Proxy: Attempt ${attempt}/${maxRetries} to ${url}`);
         
-        // Create AbortController for timeout
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
-        
-        const hfdResponse = await fetch(url, {
+        // Create the request with more explicit headers
+        const requestOptions = {
           method: 'POST',
           headers: {
-            'Content-Type': 'application/json',
-            'User-Agent': 'WixIntegration/1.0',
+            'Content-Type': 'application/json; charset=utf-8',
             'Accept': 'application/json',
-            'Connection': 'keep-alive'
+            'User-Agent': 'Mozilla/5.0 (compatible; Supabase-Edge-Function/1.0)',
+            'Cache-Control': 'no-cache',
+            'Connection': 'close' // Force close connection to avoid keep-alive issues
           },
           body: JSON.stringify(payload),
+        };
+
+        console.log('HFD Proxy: Request headers:', JSON.stringify(requestOptions.headers, null, 2));
+        console.log('HFD Proxy: Request body length:', requestOptions.body.length);
+
+        // Create AbortController for timeout
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => {
+          console.log('HFD Proxy: Request timeout after 15 seconds');
+          controller.abort();
+        }, 15000); // Reduced timeout to 15 seconds
+        
+        const hfdResponse = await fetch(url, {
+          ...requestOptions,
           signal: controller.signal,
         });
 
         clearTimeout(timeoutId);
         
         console.log(`HFD Proxy: Response status: ${hfdResponse.status}`);
+        console.log(`HFD Proxy: Response statusText: ${hfdResponse.statusText}`);
         console.log(`HFD Proxy: Response headers:`, Object.fromEntries(hfdResponse.headers.entries()));
         
         if (!hfdResponse.ok) {
           const errorText = await hfdResponse.text();
           console.error(`HFD API Error (${hfdResponse.status}):`, errorText);
           
-          // Check if it's a server error that we should retry
+          // For client errors (4xx), don't retry
+          if (hfdResponse.status >= 400 && hfdResponse.status < 500) {
+            let errorData;
+            try {
+              errorData = JSON.parse(errorText);
+            } catch {
+              errorData = { message: errorText };
+            }
+            
+            return new Response(JSON.stringify({ 
+              error: `HFD API Error (${hfdResponse.status}): ${errorData.message || errorText}`,
+              status: hfdResponse.status,
+              details: errorData
+            }), {
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+              status: 500,
+            });
+          }
+          
+          // For server errors (5xx), retry
           if (hfdResponse.status >= 500 && attempt < maxRetries) {
             throw new Error(`Server error ${hfdResponse.status}, will retry`);
           }
           
-          // Try to parse as JSON for better error message
-          let errorData;
-          try {
-            errorData = JSON.parse(errorText);
-          } catch {
-            errorData = { message: errorText };
-          }
-          
-          throw new Error(`HFD API Error (${hfdResponse.status}): ${errorData.message || errorText}`);
+          throw new Error(`HFD API Error (${hfdResponse.status}): ${errorText}`);
         }
 
         const responseText = await hfdResponse.text();
@@ -77,6 +102,7 @@ serve(async (req) => {
           responseData = JSON.parse(responseText);
         } catch (parseError) {
           console.error('Failed to parse HFD response as JSON:', parseError);
+          console.log('Response was:', responseText);
           // If it's not JSON, treat as success with the text response
           responseData = { message: responseText, success: true };
         }
@@ -91,37 +117,51 @@ serve(async (req) => {
       } catch (error) {
         lastError = error;
         console.error(`HFD Proxy: Attempt ${attempt} failed:`, error.message);
+        console.error(`HFD Proxy: Error name: ${error.name}`);
+        console.error(`HFD Proxy: Error stack:`, error.stack);
         
         // Check if it's a network/timeout error that we should retry
         const isRetryableError = error.name === 'AbortError' || 
                                 error.message.includes('network') ||
                                 error.message.includes('timeout') ||
                                 error.message.includes('connection') ||
-                                error.message.includes('Server error');
+                                error.message.includes('Server error') ||
+                                error.message.includes('fetch');
+        
+        console.log(`HFD Proxy: Is retryable error: ${isRetryableError}`);
         
         if (attempt < maxRetries && isRetryableError) {
-          // Exponential backoff with jitter
-          const delay = baseDelay * Math.pow(2, attempt - 1) + Math.random() * 1000;
+          const delay = baseDelay * attempt; // Linear backoff: 2s, 4s, 6s
           console.log(`HFD Proxy: Waiting ${delay}ms before retry ${attempt + 1}`);
           await new Promise(resolve => setTimeout(resolve, delay));
         } else if (!isRetryableError) {
-          // Don't retry for non-network errors
+          console.log('HFD Proxy: Non-retryable error, breaking retry loop');
           break;
         }
       }
     }
 
+    // If we get here, all retries failed
+    console.error('HFD Proxy: All retries exhausted, final error:', lastError?.message);
     throw lastError;
 
   } catch (error) {
     console.error('HFD Proxy Final Error:', error.message);
+    console.error('Error name:', error.name);
     console.error('Error stack:', error.stack);
     
-    return new Response(JSON.stringify({ 
+    // Return more detailed error information
+    const errorResponse = {
       error: error.message,
+      errorName: error.name,
       timestamp: new Date().toISOString(),
-      details: 'Check function logs for more information'
-    }), {
+      details: 'Check function logs for more information',
+      suggestion: error.name === 'TypeError' && error.message.includes('fetch') 
+        ? 'This appears to be a network connectivity issue. Please verify the HFD API endpoint is accessible.'
+        : 'Please check your HFD credentials and API endpoint configuration.'
+    };
+    
+    return new Response(JSON.stringify(errorResponse), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       status: 500,
     });

@@ -1,4 +1,3 @@
-
 import { supabase } from "@/integrations/supabase/client";
 
 export interface HfdSettings {
@@ -44,9 +43,9 @@ export interface HfdShipmentResponse {
   pickUpCode: number;
 }
 
-const invokeHfdProxy = async (endpoint: string, payload: any, retries: number = 3) => {
-  console.log(`Invoking HFD proxy for endpoint: ${endpoint}`);
-  console.log('Payload:', JSON.stringify(payload, null, 2));
+const invokeHfdProxy = async (endpoint: string, payload: any, retries: number = 2) => {
+  console.log(`HFD Integration: Invoking proxy for endpoint: ${endpoint}`);
+  console.log('HFD Integration: Payload being sent:', JSON.stringify(payload, null, 2));
 
   let lastError;
   
@@ -54,35 +53,46 @@ const invokeHfdProxy = async (endpoint: string, payload: any, retries: number = 
     try {
       console.log(`HFD Integration: Attempt ${attempt}/${retries}`);
       
+      const startTime = Date.now();
       const { data, error } = await supabase.functions.invoke('hfd-proxy', {
         body: { endpoint, payload },
       });
+      const endTime = Date.now();
+
+      console.log(`HFD Integration: Function call took ${endTime - startTime}ms`);
 
       if (error) {
-        console.error('Supabase function invocation error:', error);
+        console.error('HFD Integration: Supabase function invocation error:', error);
+        console.error('HFD Integration: Error details:', JSON.stringify(error, null, 2));
         throw new Error(`שגיאה בחיבור למערכת HFD: ${error.message}`);
       }
 
+      console.log('HFD Integration: Raw function response:', JSON.stringify(data, null, 2));
+
       if (data?.error) {
-        console.error('HFD API error:', data.error);
+        console.error('HFD Integration: HFD API error from response:', data.error);
+        console.error('HFD Integration: Error details:', data.details);
+        console.error('HFD Integration: Error suggestion:', data.suggestion);
         throw new Error(`שגיאה מ-HFD: ${data.error}`);
       }
 
-      console.log('HFD proxy response:', JSON.stringify(data, null, 2));
+      console.log('HFD Integration: Successfully received response from HFD proxy');
       return data;
       
     } catch (error) {
       lastError = error;
       console.error(`HFD Integration: Attempt ${attempt} failed:`, error.message);
+      console.error('HFD Integration: Error type:', error.constructor.name);
       
       if (attempt < retries) {
-        const delay = 2000 * attempt; // 2s, 4s, 6s delays
-        console.log(`Waiting ${delay}ms before retry...`);
+        const delay = 3000 * attempt; // 3s, 6s delays
+        console.log(`HFD Integration: Waiting ${delay}ms before retry...`);
         await new Promise(resolve => setTimeout(resolve, delay));
       }
     }
   }
   
+  console.error('HFD Integration: All attempts failed, throwing last error');
   throw lastError;
 }
 
@@ -90,6 +100,9 @@ const invokeHfdProxy = async (endpoint: string, payload: any, retries: number = 
  * Create a shipment in HFD system
  */
 export const createHfdShipment = async (shipmentData: HfdShipmentRequest): Promise<HfdShipmentResponse> => {
+  console.log("HFD Integration: Starting shipment creation");
+  console.log("HFD Integration: Input data:", JSON.stringify(shipmentData, null, 2));
+
   if (!shipmentData.client_number || !shipmentData.token) {
     throw new Error("חסרים פרטי התחברות ל-HFD");
   }
@@ -99,14 +112,14 @@ export const createHfdShipment = async (shipmentData: HfdShipmentRequest): Promi
     throw new Error("חסרים פרטי נמען חובה (שם, כתובת, עיר)");
   }
 
-  console.log("Creating HFD shipment via proxy with data:", shipmentData);
-  
   try {
     const result = await invokeHfdProxy('shipments', shipmentData);
+    console.log("HFD Integration: Received result from proxy:", JSON.stringify(result, null, 2));
 
     // Handle various response formats from HFD
     if (result.errorCode || result.error_code || result.errorMessage || result.error_message) {
       const errorMessage = result.errorMessage || result.error_message || `קוד שגיאה: ${result.errorCode || result.error_code}`;
+      console.error("HFD Integration: API returned error:", errorMessage);
       throw new Error(errorMessage);
     }
     
@@ -117,7 +130,7 @@ export const createHfdShipment = async (shipmentData: HfdShipmentRequest): Promi
       referenceNumber1: result.reference_number_1 || result.referenceNumber1 || '',
       referenceNumber2: result.reference_number_2 || result.referenceNumber2 || '',
       deliveryLine: result.delivery_line || result.deliveryLine || 0,
-      deliveryArea: result.delivery_area || result.deliveryArea || 0,
+      deliveryArea: result.deliveryArea || result.deliveryArea || 0,
       errorCode: result.error_code || result.errorCode || null,
       errorMessage: result.error_message || result.errorMessage || null,
       existingShipmentNumber: result.existing_shipment_number || result.existingShipmentNumber || 0,
@@ -125,14 +138,19 @@ export const createHfdShipment = async (shipmentData: HfdShipmentRequest): Promi
       pickUpCode: result.pickup_code || result.pickUpCode || 0
     };
 
+    console.log("HFD Integration: Mapped response:", JSON.stringify(response, null, 2));
+
     // Validate that we got a shipment number
     if (!response.shipmentNumber || response.shipmentNumber === 0) {
+      console.error("HFD Integration: No shipment number received");
       throw new Error("לא התקבל מספר משלוח מ-HFD");
     }
 
+    console.log("HFD Integration: Shipment created successfully with number:", response.shipmentNumber);
     return response;
   } catch (error) {
-    console.error("Error creating HFD shipment:", error);
+    console.error("HFD Integration: Error creating shipment:", error.message);
+    console.error("HFD Integration: Error stack:", error.stack);
     throw error;
   }
 };
@@ -141,6 +159,13 @@ export const createHfdShipment = async (shipmentData: HfdShipmentRequest): Promi
  * Test HFD connection
  */
 export const testHfdConnection = async (settings: HfdSettings) => {
+  console.log("HFD Integration: Testing connection with settings:", {
+    client_number: settings.client_number,
+    shipment_type_code: settings.shipment_type_code,
+    cargo_type_haloch: settings.cargo_type_haloch,
+    token: settings.token ? `${settings.token.substring(0, 20)}...` : 'missing'
+  });
+
   if (!settings.client_number || !settings.token) {
     return {
       success: false,
@@ -154,7 +179,13 @@ export const testHfdConnection = async (settings: HfdSettings) => {
       token: settings.token
     };
 
-    const result = await invokeHfdProxy('test', payload, 2); // Less retries for test
+    console.log("HFD Integration: Testing with payload:", { 
+      client_number: payload.client_number,
+      token: payload.token ? `${payload.token.substring(0, 20)}...` : 'missing'
+    });
+
+    const result = await invokeHfdProxy('test', payload, 1); // Single attempt for test
+    console.log("HFD Integration: Test result:", JSON.stringify(result, null, 2));
     
     if (result.success === false || result.error_code || result.errorCode) {
       return {
@@ -168,6 +199,7 @@ export const testHfdConnection = async (settings: HfdSettings) => {
       message: "החיבור ל-HFD תקין"
     };
   } catch (error) {
+    console.error("HFD Integration: Test connection failed:", error.message);
     return {
       success: false,
       message: `שגיאה בבדיקת החיבור: ${error instanceof Error ? error.message : 'שגיאה לא ידועה'}`
@@ -175,9 +207,6 @@ export const testHfdConnection = async (settings: HfdSettings) => {
   }
 };
 
-/**
- * Generate shipping label URL
- */
 export const getShippingLabelUrl = (shipmentNumber: number) => {
   return `https://test.hfd.co.il/RunCom.Server/Request.aspx?APPNAME=run&PRGNAME=ship_print_ws&ARGUMENTS=-N${shipmentNumber},-A,-A,-A,-A,-A,-A,-N,-A`;
 };
