@@ -72,6 +72,7 @@ export interface Shipment {
   tracking_number?: string;
   shipment_data?: any;
   status: 'created' | 'sent_to_hfd' | 'in_transit' | 'delivered' | 'failed';
+  delivery_address?: string;
   created_at?: string;
   updated_at?: string;
 }

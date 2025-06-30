@@ -1,8 +1,7 @@
-
 import { serve } from 'https://deno.land/std@0.177.0/http/server.ts'
 import { corsHeaders } from '../_shared/cors.ts'
 
-const HFD_API_BASE_URL = "https://test.hfd.co.il/RunCom.WebAPI/api/v1";
+const HFD_API_BASE_URL = "https://api.hfd.co.il/rest/v2";
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -10,47 +9,56 @@ serve(async (req) => {
   }
 
   try {
-    const { endpoint, payload } = await req.json();
+    const { endpoint, payload, token } = await req.json();
+    
     if (!endpoint || !payload) {
       throw new Error('Missing endpoint or payload in request body');
     }
 
+    if (!token) {
+      throw new Error('Missing HFD authentication token');
+    }
+
     console.log(`HFD Proxy: Making request to ${endpoint} with payload:`, JSON.stringify(payload, null, 2));
 
-    const url = `${HFD_API_BASE_URL}/${endpoint}`;
+    const url = `${HFD_API_BASE_URL}${endpoint}`;
     console.log(`HFD Proxy: Full URL: ${url}`);
     
     // Enhanced retry mechanism with better error handling
     let lastError;
-    const maxRetries = 3; // Reduced retries for faster feedback
-    const baseDelay = 2000; // 2 seconds
+    const maxRetries = 3;
+    const baseDelay = 2000;
     
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
         console.log(`HFD Proxy: Attempt ${attempt}/${maxRetries} to ${url}`);
         
-        // Create the request with more explicit headers
+        // Create the request with proper authentication
         const requestOptions = {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json; charset=utf-8',
             'Accept': 'application/json',
+            'Authorization': `Bearer ${token}`,
             'User-Agent': 'Mozilla/5.0 (compatible; Supabase-Edge-Function/1.0)',
             'Cache-Control': 'no-cache',
-            'Connection': 'close' // Force close connection to avoid keep-alive issues
+            'Connection': 'close'
           },
           body: JSON.stringify(payload),
         };
 
-        console.log('HFD Proxy: Request headers:', JSON.stringify(requestOptions.headers, null, 2));
+        console.log('HFD Proxy: Request headers:', JSON.stringify({
+          ...requestOptions.headers,
+          'Authorization': 'Bearer [REDACTED]' // Don't log the actual token
+        }, null, 2));
         console.log('HFD Proxy: Request body length:', requestOptions.body.length);
 
         // Create AbortController for timeout
         const controller = new AbortController();
         const timeoutId = setTimeout(() => {
-          console.log('HFD Proxy: Request timeout after 15 seconds');
+          console.log('HFD Proxy: Request timeout after 30 seconds');
           controller.abort();
-        }, 15000); // Reduced timeout to 15 seconds
+        }, 30000);
         
         const hfdResponse = await fetch(url, {
           ...requestOptions,
@@ -82,7 +90,7 @@ serve(async (req) => {
               details: errorData
             }), {
               headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-              status: 500,
+              status: 400, // Return 400 for client errors instead of 500
             });
           }
           
@@ -131,7 +139,7 @@ serve(async (req) => {
         console.log(`HFD Proxy: Is retryable error: ${isRetryableError}`);
         
         if (attempt < maxRetries && isRetryableError) {
-          const delay = baseDelay * attempt; // Linear backoff: 2s, 4s, 6s
+          const delay = baseDelay * attempt;
           console.log(`HFD Proxy: Waiting ${delay}ms before retry ${attempt + 1}`);
           await new Promise(resolve => setTimeout(resolve, delay));
         } else if (!isRetryableError) {

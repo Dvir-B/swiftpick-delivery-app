@@ -54,8 +54,16 @@ const invokeHfdProxy = async (endpoint: string, payload: any, retries: number = 
       console.log(`HFD Integration: Attempt ${attempt}/${retries}`);
       
       const startTime = Date.now();
+      
+      // Extract token from payload if it exists
+      const { token, ...payloadWithoutToken } = payload;
+      
       const { data, error } = await supabase.functions.invoke('hfd-proxy', {
-        body: { endpoint, payload },
+        body: { 
+          endpoint, 
+          payload: payloadWithoutToken,
+          token: token || payload.token // Support both formats
+        },
       });
       const endTime = Date.now();
 
@@ -113,29 +121,48 @@ export const createHfdShipment = async (shipmentData: HfdShipmentRequest): Promi
   }
 
   try {
-    const result = await invokeHfdProxy('shipments', shipmentData);
+    // Convert to new API format
+    const newApiPayload = {
+      clientNumber: parseInt(shipmentData.client_number),
+      shipmentTypeCode: parseInt(shipmentData.shipment_type_code) || 50,
+      cargoTypeHaloch: parseInt(shipmentData.cargo_type_haloch) || 1,
+      nameTo: shipmentData.recipient_name,
+      cityName: shipmentData.recipient_city,
+      streetName: shipmentData.recipient_address,
+      houseNum: "1", // Default if not provided
+      telFirst: shipmentData.recipient_phone,
+      shipmentRemarks: shipmentData.remarks || "",
+      referenceNum1: shipmentData.reference_num_1 || "",
+      referenceNum2: shipmentData.reference_num_2 || "",
+      productsPrice: 0,
+      productPriceCurrency: "ILS",
+      shipmentWeight: shipmentData.weight || 1000,
+      token: shipmentData.token
+    };
+
+    const result = await invokeHfdProxy('/shipments', newApiPayload);
     console.log("HFD Integration: Received result from proxy:", JSON.stringify(result, null, 2));
 
     // Handle various response formats from HFD
-    if (result.errorCode || result.error_code || result.errorMessage || result.error_message) {
-      const errorMessage = result.errorMessage || result.error_message || `קוד שגיאה: ${result.errorCode || result.error_code}`;
+    if (result.success === false || result.error) {
+      const errorMessage = result.error || result.message || "שגיאה לא ידועה";
       console.error("HFD Integration: API returned error:", errorMessage);
       throw new Error(errorMessage);
     }
     
     // Map the API response to our interface
     const response: HfdShipmentResponse = {
-      shipmentNumber: result.shipment_number || result.shipmentNumber || 0,
-      randNumber: result.rand_number || result.randNumber || '',
-      referenceNumber1: result.reference_number_1 || result.referenceNumber1 || '',
-      referenceNumber2: result.reference_number_2 || result.referenceNumber2 || '',
-      deliveryLine: result.delivery_line || result.deliveryLine || 0,
-      deliveryArea: result.deliveryArea || result.deliveryArea || 0,
-      errorCode: result.error_code || result.errorCode || null,
-      errorMessage: result.error_message || result.errorMessage || null,
-      existingShipmentNumber: result.existing_shipment_number || result.existingShipmentNumber || 0,
-      sortingCode: result.sorting_code || result.sortingCode || 0,
-      pickUpCode: result.pickup_code || result.pickUpCode || 0
+      shipmentNumber: result.shipmentNumber || result.parcel_id || 0,
+      randNumber: result.randNumber || result.random_code || '',
+      referenceNumber1: result.referenceNum1 || result.reference_number_1 || '',
+      referenceNumber2: result.referenceNum2 || result.reference_number_2 || '',
+      deliveryLine: result.deliveryLine || result.delivery_line || 0,
+      deliveryArea: result.deliveryArea || 0,
+      errorCode: result.errorCode || result.error_code || null,
+      errorMessage: result.errorMessage || result.error_message || null,
+      existingShipmentNumber: result.existingShipmentNumber || result.existing_shipment_number || 0,
+      sortingCode: result.sortingCode || result.sorting_code || 0,
+      pickUpCode: result.pickUpCode || result.pickup_code || 0
     };
 
     console.log("HFD Integration: Mapped response:", JSON.stringify(response, null, 2));
@@ -174,23 +201,39 @@ export const testHfdConnection = async (settings: HfdSettings) => {
   }
   
   try {
-    const payload = {
-      client_number: settings.client_number,
-      token: settings.token
+    // Test with a minimal shipment creation request
+    const testPayload = {
+      clientNumber: parseInt(settings.client_number),
+      shipmentTypeCode: parseInt(settings.shipment_type_code) || 50,
+      cargoTypeHaloch: parseInt(settings.cargo_type_haloch) || 1,
+      nameTo: "בדיקה",
+      cityName: "תל אביב",
+      streetName: "דיזנגוף",
+      houseNum: "1",
+      telFirst: "050-1234567",
+      shipmentRemarks: "בדיקת חיבור - לא לשליחה",
+      referenceNum1: "TEST-" + Date.now(),
+      productsPrice: 0,
+      productPriceCurrency: "ILS",
+      shipmentWeight: 100,
+      token: settings.token // Add token to payload
     };
 
     console.log("HFD Integration: Testing with payload:", { 
-      client_number: payload.client_number,
-      token: payload.token ? `${payload.token.substring(0, 20)}...` : 'missing'
+      ...testPayload,
+      clientNumber: testPayload.clientNumber,
+      shipmentTypeCode: testPayload.shipmentTypeCode,
+      cargoTypeHaloch: testPayload.cargoTypeHaloch,
+      token: testPayload.token ? `${testPayload.token.substring(0, 20)}...` : 'missing'
     });
 
-    const result = await invokeHfdProxy('test', payload, 1); // Single attempt for test
+    const result = await invokeHfdProxy('/shipments', testPayload, 1); // Single attempt for test
     console.log("HFD Integration: Test result:", JSON.stringify(result, null, 2));
     
-    if (result.success === false || result.error_code || result.errorCode) {
+    if (result.success === false || result.error) {
       return {
         success: false,
-        message: result.error_message || result.errorMessage || result.message || "שגיאה לא ידועה בבדיקת החיבור"
+        message: result.error || result.message || "שגיאה לא ידועה בבדיקת החיבור"
       };
     }
     
@@ -199,10 +242,10 @@ export const testHfdConnection = async (settings: HfdSettings) => {
       message: "החיבור ל-HFD תקין"
     };
   } catch (error) {
-    console.error("HFD Integration: Test connection failed:", error.message);
+    console.error("HFD Integration: Test connection error:", error.message);
     return {
       success: false,
-      message: `שגיאה בבדיקת החיבור: ${error instanceof Error ? error.message : 'שגיאה לא ידועה'}`
+      message: error.message || "שגיאה בבדיקת החיבור"
     };
   }
 };
@@ -300,7 +343,7 @@ export const checkShipmentStatus = async (shipmentNumber: number, hfdSettings: H
       shipment_number: shipmentNumber
     };
 
-    const result = await invokeHfdProxy('shipments/status', payload);
+    const result = await invokeHfdProxy('/shipments/status', payload);
     return result;
   } catch (error) {
     console.error('Error checking shipment status:', error);

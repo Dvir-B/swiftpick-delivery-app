@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { getOrders, softDeleteOrder, updateOrderStatus, getHfdSettings, logOrderActivity } from "@/services/database";
-import { convertOrderToHfdShipment, createHfdShipment } from "@/utils/hfdIntegration";
+import { createDelivery } from '@/services/delivery';
 import { Order } from "@/lib/supabase";
 import { useToast } from "@/hooks/use-toast";
 
@@ -12,6 +12,7 @@ export const useOrders = () => {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedOrders, setSelectedOrders] = useState<string[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
     loadOrders();
@@ -92,32 +93,29 @@ export const useOrders = () => {
 
   const handleSendToShipping = async (order: Order) => {
     try {
-      const hfdSettings = await getHfdSettings();
-      if (!hfdSettings) {
-        toast({
-          title: "שגיאה",
-          description: "לא נמצאו הגדרות HFD. אנא הגדר תחילה את פרטי ההתחברות ל-HFD",
-          variant: "destructive",
-        });
-        return;
+      console.log('Sending order to delivery:', order);
+
+      const result = await createDelivery(order);
+      console.log('Delivery result:', result);
+
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to create delivery');
       }
 
-      console.log('Sending order to HFD:', order);
-      console.log('Using HFD settings:', hfdSettings);
-
-      const shipmentData = convertOrderToHfdShipment(order, hfdSettings);
-      console.log('Converted shipment data:', shipmentData);
-
-      const result = await createHfdShipment(shipmentData);
-      console.log('HFD shipment result:', result);
-
       await updateOrderStatus(order.id!, "shipped");
-      await logOrderActivity({ order_id: order.id!, activity_type: 'shipment_created', details: { hfdShipmentNumber: result.shipmentNumber } });
+      await logOrderActivity({ 
+        order_id: order.id!, 
+        activity_type: 'shipment_created', 
+        details: { 
+          hfdShipmentNumber: result.shipment?.hfd_shipment_number,
+          trackingNumber: result.shipment?.tracking_number
+        } 
+      });
       await loadOrders();
 
       toast({
         title: "הזמנה נשלחה בהצלחה",
-        description: `משלוח מספר ${result.shipmentNumber} נוצר ב-HFD`,
+        description: `משלוח מספר ${result.shipment?.hfd_shipment_number} נוצר בהצלחה`,
       });
     } catch (error) {
       console.error('Error sending order to shipping:', error);
@@ -161,44 +159,62 @@ export const useOrders = () => {
       return;
     }
 
-    const hfdSettings = await getHfdSettings();
-    if (!hfdSettings) {
-      toast({
-        title: "שגיאה",
-        description: "לא נמצאו הגדרות HFD. אנא הגדר תחילה את פרטי ההתחברות ל-HFD",
-        variant: "destructive",
-      });
-      return;
-    }
-
     toast({ description: `מתחיל שליחה של ${ordersToSend.length} הזמנות...` });
 
+    setIsLoading(true);
     let successCount = 0;
     let errorCount = 0;
+    const errors: string[] = [];
 
     for (const order of ordersToSend) {
       try {
-        const shipmentData = convertOrderToHfdShipment(order, hfdSettings);
-        const result = await createHfdShipment(shipmentData);
+        console.log(`Processing order ${order.order_number} for bulk send`);
+        
+        const result = await createDelivery(order);
+        
+        if (!result.success) {
+          throw new Error(result.error || 'Failed to create delivery');
+        }
+        
         await updateOrderStatus(order.id!, "shipped");
-        await logOrderActivity({ order_id: order.id!, activity_type: 'shipment_created', details: { hfdShipmentNumber: result.shipmentNumber, context: 'bulk_send' } });
-        console.log(`Order ${order.order_number} sent successfully. HFD shipment: ${result.shipmentNumber}`);
+        await logOrderActivity({ 
+          order_id: order.id!, 
+          activity_type: 'shipment_created', 
+          details: { 
+            hfdShipmentNumber: result.shipment?.hfd_shipment_number,
+            trackingNumber: result.shipment?.tracking_number,
+            context: 'bulk_send'
+          } 
+        });
+        console.log(`Order ${order.order_number} sent successfully. HFD shipment: ${result.shipment?.hfd_shipment_number}`);
         successCount++;
-      } catch (error: any) {
-        console.error(`Error sending order ${order.order_number}:`, error);
-        await updateOrderStatus(order.id!, 'error');
-        await logOrderActivity({
+      } catch (error) {
+        console.error(`Error processing order ${order.order_number}:`, error);
+        errors.push(`הזמנה ${order.order_number}: ${error instanceof Error ? error.message : 'שגיאה לא ידועה'}`);
+        errorCount++;
+        
+        // Update order status to error
+        try {
+          await updateOrderStatus(order.id!, 'error');
+          await logOrderActivity({
             order_id: order.id!,
             activity_type: 'shipment_creation_failed',
-            details: { error: error.message, context: 'bulk_send' }
-        });
-        errorCount++;
+            details: { 
+              error: error instanceof Error ? error.message : String(error),
+              context: 'bulk_send'
+            }
+          });
+        } catch (logError) {
+          console.error('Error logging activity:', logError);
+        }
       }
     }
 
+    setIsLoading(false);
     await loadOrders();
     setSelectedOrders([]);
 
+    // Show results
     let summaryMessage = `${successCount} הזמנות נשלחו בהצלחה.`;
     if (errorCount > 0) {
       summaryMessage += ` ${errorCount} נכשלו.`;
@@ -212,6 +228,46 @@ export const useOrders = () => {
       description: summaryMessage,
       variant: errorCount > 0 ? "destructive" : "default",
       duration: 9000
+    });
+
+    if (errorCount > 0) {
+      toast({
+        title: "שגיאות בשליחה",
+        description: errors.slice(0, 3).join(', ') + (errors.length > 3 ? ` ועוד ${errors.length - 3} שגיאות` : ''),
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleBulkDeleteOrders = async () => {
+    if (selectedOrders.length === 0) {
+      toast({
+        title: "לא נבחרו הזמנות",
+        description: "יש לבחור הזמנות למחיקה.",
+        variant: "destructive"
+      });
+      return;
+    }
+    setIsLoading(true);
+    let successCount = 0;
+    let errorCount = 0;
+    for (const orderId of selectedOrders) {
+      try {
+        await softDeleteOrder(orderId);
+        await logOrderActivity({ order_id: orderId, activity_type: 'order_deleted', details: { context: 'bulk_delete' } });
+        successCount++;
+      } catch (error) {
+        errorCount++;
+        console.error('Error deleting order:', error);
+      }
+    }
+    setIsLoading(false);
+    await loadOrders();
+    setSelectedOrders([]);
+    toast({
+      title: "מחיקת הזמנות הושלמה",
+      description: `${successCount} הזמנות נמחקו${errorCount > 0 ? `, ${errorCount} נכשלו` : ''}`,
+      variant: errorCount > 0 ? "destructive" : "default"
     });
   };
 
@@ -240,6 +296,7 @@ export const useOrders = () => {
     handleUpdateStatus,
     handleSendToShipping,
     handleBulkSendToShipping,
+    handleBulkDeleteOrders,
     handleSelectOrder,
     handleSelectAllOrders
   };

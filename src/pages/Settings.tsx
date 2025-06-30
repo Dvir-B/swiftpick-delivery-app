@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -11,7 +10,7 @@ import { processOrdersFile } from "@/services/fileProcessing";
 import { useToast } from "@/hooks/use-toast";
 import { getHfdSettings, saveHfdSettings, getWixCredentials, saveWixCredentials, getWebhookSettings, saveWebhookSettings } from "@/services/database";
 import { startWixIntegration, completeWixIntegration, testWixConnection } from "@/utils/wixIntegration";
-import { testHfdConnection, convertOrderToHfdShipment, createHfdShipment } from "@/utils/hfdIntegration";
+import { testDeliveryConnection, createDelivery } from '@/services/delivery';
 import { WixCredentials, HfdSettings as HfdSettingsType } from "@/lib/supabase";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft } from "lucide-react";
@@ -105,16 +104,16 @@ const Settings = () => {
   const handleHfdTest = async () => {
     setIsTestingHfd(true);
     try {
-      const result = await testHfdConnection(hfdSettings);
+      const result = await testDeliveryConnection();
       toast({
         title: result.success ? "חיבור תקין" : "שגיאה בחיבור",
-        description: result.message,
+        description: result.success ? (result.message || "החיבור ל-HFD תקין") : (result.error || "שגיאה לא ידועה"),
         variant: result.success ? "default" : "destructive",
       });
     } catch (error) {
       toast({
         title: "שגיאה בבדיקת חיבור",
-        description: "אירעה שגיאה בבדיקת החיבור",
+        description: error instanceof Error ? error.message : "אירעה שגיאה בבדיקת החיבור",
         variant: "destructive",
       });
     } finally {
@@ -237,20 +236,17 @@ const Settings = () => {
   const handleCreateShipment = async (orderData: any) => {
     try {
       console.log('Creating shipment for order:', orderData);
-      console.log('Using HFD settings:', hfdSettings);
       
-      // Convert order data to HFD shipment format
-      const shipmentData = convertOrderToHfdShipment(orderData, hfdSettings);
-      console.log('Converted shipment data:', shipmentData);
+      const result = await createDelivery(orderData);
       
-      // Create shipment in HFD
-      const result = await createHfdShipment(shipmentData);
-      console.log('HFD shipment result:', result);
-      
-      toast({
-        title: "משלוח נוצר בהצלחה",
-        description: `משלוח מספר ${result.shipmentNumber} נוצר ב-HFD`,
-      });
+      if (result.success) {
+        toast({
+          title: "משלוח נוצר בהצלחה",
+          description: `משלוח מספר ${result.shipment?.hfd_shipment_number} נוצר בהצלחה`,
+        });
+      } else {
+        throw new Error(result.error || 'Failed to create delivery');
+      }
     } catch (error) {
       console.error('Error creating shipment:', error);
       toast({

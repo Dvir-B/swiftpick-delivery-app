@@ -1,4 +1,3 @@
-
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useOrders } from "@/hooks/useOrders";
@@ -19,6 +18,7 @@ export function OrdersTable() {
     handleUpdateStatus,
     handleSendToShipping,
     handleBulkSendToShipping,
+    handleBulkDeleteOrders,
     handleSelectOrder,
     handleSelectAllOrders
   } = useOrders();
@@ -38,6 +38,7 @@ export function OrdersTable() {
         onSearchTermChange={setSearchTerm}
         selectedOrdersCount={selectedOrders.length}
         onBulkSend={handleBulkSendToShipping}
+        onBulkDelete={handleBulkDeleteOrders}
         onGoBack={handleGoBack}
       />
       

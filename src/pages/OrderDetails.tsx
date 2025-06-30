@@ -1,4 +1,3 @@
-
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -6,17 +5,21 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { ArrowRight, Package, MapPin, Calendar, DollarSign, User, Mail, Phone, ArrowLeft, Edit, Truck, Eye } from "lucide-react";
-import { getOrderById, getOrderLogs } from "@/services/database";
+import { getOrderById, getOrderLogs, getShipments } from "@/services/database";
+import type { Shipment } from "@/lib/supabase";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { OrderActivityTimeline } from "@/components/order-details/OrderActivityTimeline";
 import { OrderActions } from "@/components/order-details/OrderActions";
 import { OrderEditDialog } from "@/components/order-details/OrderEditDialog";
-import { useState } from "react";
+import { CreateShipmentForm } from "@/components/shipments/CreateShipmentForm";
+import { toast } from "@/hooks/use-toast";
+import { useState, useEffect } from "react";
 
 const OrderDetails = () => {
   const { orderId } = useParams<{ orderId: string }>();
   const navigate = useNavigate();
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [shipment, setShipment] = useState<Shipment | null>(null);
 
   const { data: order, isLoading: orderLoading, refetch: refetchOrder } = useQuery({
     queryKey: ['order', orderId],
@@ -29,6 +32,15 @@ const OrderDetails = () => {
     queryFn: () => getOrderLogs(orderId!),
     enabled: !!orderId,
   });
+
+  useEffect(() => {
+    if (order?.id) {
+      getShipments().then((shipments) => {
+        const found = shipments.find((s) => s.order_id === order.id);
+        setShipment(found || null);
+      });
+    }
+  }, [order?.id]);
 
   if (orderLoading) {
     return (
@@ -158,7 +170,7 @@ const OrderDetails = () => {
           </Card>
 
           {/* Shipping Address */}
-          {order.shipping_address && (
+          {(order.shipping_address || shipment?.delivery_address) && (
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
@@ -167,11 +179,34 @@ const OrderDetails = () => {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="space-y-2">
-                  <p>{order.shipping_address.street}</p>
-                  <p>{order.shipping_address.city}, {order.shipping_address.zipCode}</p>
-                  {order.shipping_address.country && <p>{order.shipping_address.country}</p>}
-                </div>
+                {typeof order.shipping_address === 'string' ? (
+                  <p>{order.shipping_address}</p>
+                ) : (
+                  <div>
+                    {/* Display full address first if available */}
+                    {order.shipping_address?.address && <p>{order.shipping_address.address}</p>}
+                    
+                    {/* Then display structured address, but avoid redundancy if full address exists */}
+                    {order.shipping_address?.street && !order.shipping_address.address && (
+                      <p>{order.shipping_address.street}</p>
+                    )}
+                    {(order.shipping_address?.city || order.shipping_address?.zipCode) && !order.shipping_address.address && (
+                      <p>
+                        {order.shipping_address.city}{order.shipping_address.zipCode ? `, ${order.shipping_address.zipCode}` : ''}
+                      </p>
+                    )}
+                    {order.shipping_address?.country && !order.shipping_address.address && (
+                      <p>{order.shipping_address.country}</p>
+                    )}
+                  </div>
+                )}
+                
+                {shipment?.delivery_address && (
+                  <div className={order.shipping_address ? 'mt-4 pt-4 border-t' : ''}>
+                    <p className="text-sm text-gray-500 mb-1">כתובת למשלוח (HFD)</p>
+                    <p>{shipment.delivery_address}</p>
+                  </div>
+                )}
               </CardContent>
             </Card>
           )}
@@ -251,6 +286,29 @@ const OrderDetails = () => {
             order={order} 
             onOrderUpdated={handleOrderUpdated}
           />
+
+          {/* Create Shipment */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Truck className="w-5 h-5" />
+                יצירת משלוח
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <CreateShipmentForm 
+                orderId={order.id}
+                onSuccess={(shipmentNumber) => {
+                  // Update order with shipment info
+                  handleOrderUpdated();
+                  toast({
+                    title: 'משלוח נוצר בהצלחה',
+                    description: `מספר המשלוח: ${shipmentNumber}`,
+                  });
+                }}
+              />
+            </CardContent>
+          </Card>
         </div>
       </div>
 

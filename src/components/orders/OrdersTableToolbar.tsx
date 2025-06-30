@@ -1,13 +1,13 @@
-
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { ArrowLeft, Send, Search } from "lucide-react";
+import { ArrowLeft, Send, Search, Trash2 } from "lucide-react";
 
 interface OrdersTableToolbarProps {
   searchTerm: string;
   onSearchTermChange: (value: string) => void;
   selectedOrdersCount: number;
   onBulkSend: () => void;
+  onBulkDelete: () => void;
   onGoBack: () => void;
 }
 
@@ -16,6 +16,7 @@ export const OrdersTableToolbar = ({
   onSearchTermChange,
   selectedOrdersCount,
   onBulkSend,
+  onBulkDelete,
   onGoBack,
 }: OrdersTableToolbarProps) => {
   return (
@@ -30,10 +31,16 @@ export const OrdersTableToolbar = ({
           חזור
         </Button>
         {selectedOrdersCount > 0 && (
-          <Button onClick={onBulkSend}>
-            <Send className="w-4 h-4 mr-2" />
-            שלח למשלוח ({selectedOrdersCount})
-          </Button>
+          <>
+            <Button onClick={onBulkSend}>
+              <Send className="w-4 h-4 mr-2" />
+              שלח למשלוח ({selectedOrdersCount})
+            </Button>
+            <Button onClick={onBulkDelete} variant="destructive">
+              <Trash2 className="w-4 h-4 mr-2" />
+              מחק ({selectedOrdersCount})
+            </Button>
+          </>
         )}
       </div>
       

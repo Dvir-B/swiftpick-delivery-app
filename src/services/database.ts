@@ -118,7 +118,10 @@ export const getWixCredentials = async (): Promise<WixCredentials | null> => {
 // Orders functions with soft delete
 export const saveOrder = async (order: Omit<Order, 'id' | 'user_id' | 'created_at' | 'updated_at'>) => {
   const { data: { user } } = await supabase.auth.getUser();
-  if (!user) throw new Error('User not authenticated');
+  if (!user) {
+    console.error('User not authenticated');
+    throw new Error('עליך להתחבר כדי להעלות הזמנות');
+  }
 
   const { data, error } = await supabase
     .from('orders')
