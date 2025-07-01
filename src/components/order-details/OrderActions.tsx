@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -40,11 +39,7 @@ export function OrderActions({ order, onOrderUpdated }: OrderActionsProps) {
     setIsUpdating(true);
     try {
       await updateOrderStatus(order.id!, newStatus);
-      await logOrderActivity({ 
-        order_id: order.id!, 
-        activity_type: 'status_updated', 
-        details: { newStatus, previousStatus: order.status } 
-      });
+      await logOrderActivity(order.id!, 'status_updated', { newStatus, previousStatus: order.status });
       onOrderUpdated();
       toast({
         title: "סטטוס עודכן",
@@ -66,10 +61,7 @@ export function OrderActions({ order, onOrderUpdated }: OrderActionsProps) {
     setIsUpdating(true);
     try {
       await softDeleteOrder(order.id!);
-      await logOrderActivity({ 
-        order_id: order.id!, 
-        activity_type: 'order_deleted' 
-      });
+      await logOrderActivity(order.id!, 'order_deleted');
       toast({
         title: "הזמנה נמחקה",
         description: "ההזמנה נמחקה בהצלחה",

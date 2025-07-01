@@ -56,7 +56,7 @@ export const useOrders = () => {
   const handleDeleteOrder = async (orderId: string) => {
     try {
       await softDeleteOrder(orderId);
-      await logOrderActivity({ order_id: orderId, activity_type: 'order_deleted' });
+      await logOrderActivity(orderId, 'order_deleted');
       await loadOrders();
       toast({
         title: "הזמנה נמחקה",
@@ -75,7 +75,7 @@ export const useOrders = () => {
   const handleUpdateStatus = async (orderId: string, newStatus: Order['status']) => {
     try {
       await updateOrderStatus(orderId, newStatus);
-      await logOrderActivity({ order_id: orderId, activity_type: 'status_updated', details: { newStatus } });
+      await logOrderActivity(orderId, 'status_updated', { newStatus });
       await loadOrders();
       toast({
         title: "סטטוס עודכן",
@@ -103,14 +103,7 @@ export const useOrders = () => {
       }
 
       await updateOrderStatus(order.id!, "shipped");
-      await logOrderActivity({ 
-        order_id: order.id!, 
-        activity_type: 'shipment_created', 
-        details: { 
-          hfdShipmentNumber: result.shipment?.hfd_shipment_number,
-          trackingNumber: result.shipment?.tracking_number
-        } 
-      });
+      await logOrderActivity(order.id!, 'shipment_created', { hfdShipmentNumber: result.shipment?.hfd_shipment_number, trackingNumber: result.shipment?.tracking_number });
       await loadOrders();
 
       toast({
@@ -121,11 +114,7 @@ export const useOrders = () => {
       console.error('Error sending order to shipping:', error);
       if (order.id) {
         await updateOrderStatus(order.id, 'error');
-        await logOrderActivity({
-          order_id: order.id,
-          activity_type: 'shipment_creation_failed',
-          details: { error: error instanceof Error ? error.message : String(error) }
-        });
+        await logOrderActivity(order.id, 'shipment_creation_failed', { error: error instanceof Error ? error.message : String(error) });
         await loadOrders();
       }
       toast({
@@ -177,15 +166,7 @@ export const useOrders = () => {
         }
         
         await updateOrderStatus(order.id!, "shipped");
-        await logOrderActivity({ 
-          order_id: order.id!, 
-          activity_type: 'shipment_created', 
-          details: { 
-            hfdShipmentNumber: result.shipment?.hfd_shipment_number,
-            trackingNumber: result.shipment?.tracking_number,
-            context: 'bulk_send'
-          } 
-        });
+        await logOrderActivity(order.id!, 'shipment_created', { hfdShipmentNumber: result.shipment?.hfd_shipment_number, trackingNumber: result.shipment?.tracking_number, context: 'bulk_send' });
         console.log(`Order ${order.order_number} sent successfully. HFD shipment: ${result.shipment?.hfd_shipment_number}`);
         successCount++;
       } catch (error) {
@@ -196,14 +177,7 @@ export const useOrders = () => {
         // Update order status to error
         try {
           await updateOrderStatus(order.id!, 'error');
-          await logOrderActivity({
-            order_id: order.id!,
-            activity_type: 'shipment_creation_failed',
-            details: { 
-              error: error instanceof Error ? error.message : String(error),
-              context: 'bulk_send'
-            }
-          });
+          await logOrderActivity(order.id!, 'shipment_creation_failed', { error: error instanceof Error ? error.message : String(error), context: 'bulk_send' });
         } catch (logError) {
           console.error('Error logging activity:', logError);
         }
@@ -254,7 +228,7 @@ export const useOrders = () => {
     for (const orderId of selectedOrders) {
       try {
         await softDeleteOrder(orderId);
-        await logOrderActivity({ order_id: orderId, activity_type: 'order_deleted', details: { context: 'bulk_delete' } });
+        await logOrderActivity(orderId, 'order_deleted', { context: 'bulk_delete' });
         successCount++;
       } catch (error) {
         errorCount++;

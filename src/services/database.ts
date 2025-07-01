@@ -210,17 +210,25 @@ export const updateOrderStatus = async (orderId: string, status: Order['status']
   return data;
 };
 
-export const logOrderActivity = async (activity: Omit<OrderLog, 'id' | 'user_id' | 'created_at'>) => {
+export const logOrderActivity = async (
+  order_id: string,
+  activity_type: string,
+  details?: any,
+  action?: string
+) => {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) {
-      console.error('User not authenticated for logging');
-      return;
-  };
+    console.error('User not authenticated for logging');
+    return;
+  }
 
   const { error } = await supabase
     .from('order_logs')
     .insert({
-      ...activity,
+      order_id,
+      activity_type,
+      details,
+      action,
       user_id: user.id
     });
 

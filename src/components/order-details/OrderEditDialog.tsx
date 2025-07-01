@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { Order } from "@/lib/supabase";
@@ -81,11 +80,7 @@ export function OrderEditDialog({ order, open, onOpenChange, onOrderUpdated }: O
       };
 
       await updateOrder(order.id!, updates);
-      await logOrderActivity({
-        order_id: order.id!,
-        activity_type: 'order_updated',
-        details: { updatedFields: Object.keys(updates) }
-      });
+      await logOrderActivity(order.id!, 'order_updated', { updatedFields: Object.keys(updates) });
 
       onOrderUpdated();
       onOpenChange(false);

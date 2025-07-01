@@ -52,26 +52,16 @@ export const createDelivery = async (orderData: any): Promise<DeliveryResponse> 
   try {
     console.log('Delivery Service: Creating HFD delivery for order:', orderData);
 
-    const shipmentPayload = {
-      shipment: {
-        nameTo: orderData.shipping_address?.full_name || orderData.customer_name,
-        telFirst: orderData.shipping_address?.phone || orderData.customer_phone,
-        cityName: orderData.shipping_address?.city,
-        streetName: orderData.shipping_address?.address1 || orderData.street_name || "לא צוין",
-        houseNum: orderData.shipping_address?.address2 || orderData.house_number || "",
-        apartment: orderData.shipping_address?.apartment,
-        email: orderData.customer_email,
-        productsPrice: parseFloat(orderData.total_price),
-        shipmentWeight: orderData.total_weight || 500, // Default to 500g if not present
-        ecommerceOrderId: orderData.order_number,
-        ecommercePlatform: orderData.platform,
-      }
-    };
-    
-    console.log('Invoking hfd-create-shipment with payload:', shipmentPayload);
+    console.log('Invoking hfd-create-shipment with payload:', { order_id: orderData.id });
+
+    const session = await supabase.auth.getSession();
+    const accessToken = session.data.session?.access_token;
 
     const { data, error } = await supabase.functions.invoke('hfd-create-shipment', {
-      body: shipmentPayload
+      body: { order_id: orderData.id },
+      headers: {
+        ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {})
+      }
     });
 
     if (error) {
