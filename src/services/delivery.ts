@@ -76,16 +76,39 @@ export const createDelivery = async (orderData: any): Promise<DeliveryResponse> 
       throw new Error(data.error || 'אירעה שגיאה לא ידועה ביצירת המשלוח');
     }
 
-    // The new function returns a different structure
-    return {
+    // Handle test response from Edge Function
+    if (data.message === 'Edge Function is working with CORS!') {
+      return {
         success: true,
         shipment: {
-            id: data.shipment.id,
-            hfd_shipment_number: data.shipment.hfdShipmentNumber,
-            tracking_number: data.shipment.hfdShipmentNumber, // HFD uses the same for tracking
-            status: data.shipment.status,
+          id: `TEST_${Date.now()}`,
+          hfd_shipment_number: 'TEST_SHIPMENT',
+          tracking_number: 'TEST_TRACKING',
+          status: 'test',
+        },
+        message: 'Test successful - ready for HFD integration',
+      };
+    }
+
+    // Handle actual HFD response when implemented
+    if (data.shipment) {
+      return {
+        success: true,
+        shipment: {
+          id: data.shipment.id,
+          hfd_shipment_number: data.shipment.hfdShipmentNumber,
+          tracking_number: data.shipment.hfdShipmentNumber, // HFD uses the same for tracking
+          status: data.shipment.status,
         },
         message: data.message,
+      };
+    }
+
+    // If neither, return a generic error
+    console.error('Delivery Service: Unexpected response structure:', data);
+    return {
+      success: false,
+      error: 'Unexpected response structure from delivery function',
     };
 
   } catch (error) {
